@@ -10,12 +10,10 @@ decorator.
 import dcp from distributive
 
 job_options = {
-    "compute_groups": [
-        {
-            "joinKey": "will",
-            "joinSecret": "bozo"
-        }
-    ],
+    "computeGroups": [{
+        "joinKey": "will",
+        "joinSecret": "bozo"
+    }],
     "public": { "name": "my epic job" },
     "autoClose": False,
 }
