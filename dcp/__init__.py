@@ -1,15 +1,42 @@
-def init(function_names):
-    """
-    Dynamically adds functions to the dcp module.
-    
-    Args:
-        function_names (list of str): List of function names to add.
-    """
-    import sys
-    module = sys.modules[__name__]
+import sys
+from types import ModuleType as Module
 
-    for name in function_names:
-        # Create a function that returns True
-        func = lambda: True
-        # Assign the function to the module with the given name
-        setattr(module, name, func)
+import pythonmonkey as pm
+
+from .sanity import sanity
+from .dcp_client_js import dcp_js
+
+# state
+init_memo = None
+
+
+def init(**kwargs):
+    global init_memo
+
+    # no-op on multiple initializations
+    if init_memo is not None:
+        return init_memo
+
+    # initialize dcp
+    dcp_js['init'](**kwargs)
+    init_memo = True
+
+    # build dcp modules
+    for name in pm.globalThis.dcp.keys():
+        module_tree(sys.modules[__name__], pm.globalThis.dcp[name], name)
+
+    print(dir(sys.modules[__name__]))
+
+
+def module_tree(py_parent, js_child, js_name):
+    underscore_name = f"{js_name.replace('-', '_')}"
+    module_name = f"{py_parent.__name__}.{underscore_name}"
+    module = Module(module_name)
+    module.__file__ = f"<dynamically created {module_name}>"
+    module._js = js_child
+    sys.modules[module_name] = module
+    setattr(py_parent, underscore_name, module)
+
+
+__all__ = ["init", "sanity"]
+

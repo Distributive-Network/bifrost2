@@ -9,3 +9,8 @@ Install [Poetry](https://python-poetry.org/), then in the root of the project di
 Verify your installation is correct by running the test suite:
 - `$ poetry run pytest`
 
+## Tests
+
+Run tests with:
+- `$ poetry run pytest`
+

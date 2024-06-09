@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "dcp-client": "file:../../../dcp-client"
+  }
+}
