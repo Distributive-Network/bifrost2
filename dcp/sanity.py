@@ -1,0 +1,3 @@
+def sanity():
+    return True
+
