@@ -1,4 +1,13 @@
 # @file         js_object.py - Wrapper Class for DCP JS Classes
+#               PythonMonkey's async functions leak, by design, meaning calling
+#               a function which returns a promise will immediately require usage
+#               of an event loop or will otherwise error. Therefore, not only
+#               are async functions block waited, but are also wrapped for use
+#               with the aio subcomponent.
+#
+#               For example: job.aio.exec will return an awaitable but job.exec
+#               will block until the true value is returned which the awaitable
+#               awaits to.
 #
 # @author       Will Pringle <will@distributive.network>
 # @date         June 2024
@@ -8,6 +17,19 @@ import pythonmonkey as pm
 
 
 def create_js_class(name, js_class, props={}, aio_methods=[], aio_ctor=False):
+    """
+    Factory of Classes function for generating pleasant proxies to JS Classes.
+
+    Parameters:
+    name (string): The name of the new class to make.
+    js_class (function): The JavaScript class to wrap.
+    props  (dict, optional): Properties to add to the class.
+    aio_methods (list, optional): List of asynchronous method names to wrap.
+    aio_ctor (bool, optional): Whether the JS constructor is async.
+
+    Returns:
+    type: A new Python class which wraps the given JavaScript class.
+    """
     class AsyncIOMethods:
         def __init__(self, parent):
             self.parent = parent
