@@ -1,3 +1,4 @@
-# A playground for experiments
+# Bifrost2 - The Python SDK for [DCP](https://www.dcp.dev/)
 
-For now, please keep work to your own subdirectory. We may, or may not, organize it later.
+
+
