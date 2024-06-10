@@ -2,7 +2,9 @@ import unittest
 import asyncio
 import inspect
 import pythonmonkey as pm
-from dcp.js_wrappers import create_js_class as make_class
+import dcp
+from dcp.js_wrappers import make_dcp_class as make_class
+from dcp.js_wrappers import wrap_js_obj
 
 
 class TestJSObjectFunction(unittest.TestCase):
@@ -27,7 +29,7 @@ class Rectangle
 Rectangle;
         """)
 
-        PyRect = make_class('PyRect', JSRect)
+        PyRect = make_class(JSRect)
         my_rect = PyRect(2, 7)
 
         self.assertTrue(my_rect.area == 2 * 7)
@@ -49,7 +51,7 @@ class Coffee
 Coffee;
         """)
 
-        Coffee = make_class('Coffee', MyClass, aio_methods=["brew"])
+        Coffee = make_class(MyClass, aio_methods=["brew"])
         cup_of_joe = Coffee()
 
         # should be able to sleep synchronously
@@ -62,7 +64,6 @@ Coffee;
         self.assertTrue(asyncio.run(resp), 13)
 
     def test_aio_ctor(self):
-
         Human = pm.eval("""
 class Human
 {
@@ -79,12 +80,24 @@ class Human
 Human;
         """)
 
-        HumanPy = make_class('Human', Human, aio_ctor=True)
+        HumanPy = make_class(Human, aio_ctor=True)
 
         # verify constructor promise has been resolved
         baby = HumanPy('Joe')
         self.assertTrue(not inspect.isawaitable(baby))
         self.assertTrue(baby.name == 'Joe')
+
+    def test_wrapping_js_instance(self):
+        hex_code = '0x1111222233334444555566667777888899990000'
+        dcp.init()
+        Address = pm.globalThis.dcp.wallet.Address
+
+        make_class(Address)
+
+        address = pm.new(Address)(hex_code)
+        py_obj = wrap_js_obj(address)
+
+        self.assertTrue(py_obj.address == hex_code)
 
 
 if __name__ == '__main__':

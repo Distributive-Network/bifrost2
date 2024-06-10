@@ -1,4 +1,4 @@
-from .js_object import create_js_class
+from .js_object import make_dcp_class, wrap_js_obj
 
-__all__ = ['create_js_class']
+__all__ = ['make_dcp_class', 'wrap_js_obj']
 
