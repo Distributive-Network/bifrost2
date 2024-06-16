@@ -19,6 +19,7 @@ import asyncio
 import types
 import pythonmonkey as pm
 
+from .fn import aio_run_wrapper, blocking_run_wrapper
 
 def make_dcp_class(js_class, **kwargs):
     """
@@ -112,13 +113,6 @@ def wrap_js_obj(js_obj, **kwargs):
     generic_obj = DCPClass()
 
     return generic_obj
-
-
-def aio_run_wrapper(leaky_async_fn):
-    async def aio_fn(*args, **kwargs):
-        return await leaky_async_fn(*args, **kwargs)
-    return aio_fn
-
 
 def js_class_name(JSClass):
     return pm.eval('x=>x.name')(JSClass)

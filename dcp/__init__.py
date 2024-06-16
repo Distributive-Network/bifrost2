@@ -1,3 +1,5 @@
+# NOTE TO SELF - have to load class registry before classes that use it
+
 import sys
 from types import ModuleType as Module
 
