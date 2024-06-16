@@ -4,7 +4,7 @@ from types import ModuleType as Module
 import pythonmonkey as pm
 
 from .sanity import sanity
-from .dcp_client_js import dcp_js
+from .js import dcp_client as dcp_js
 
 # state
 init_memo = None

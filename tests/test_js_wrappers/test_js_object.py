@@ -3,8 +3,8 @@ import asyncio
 import inspect
 import pythonmonkey as pm
 import dcp
-from dcp.js_wrappers import make_dcp_class as make_class
-from dcp.js_wrappers import wrap_js_obj
+from dcp.dry import make_dcp_class as make_class
+from dcp.dry import wrap_js_obj
 
 
 class TestJSObjectFunction(unittest.TestCase):
