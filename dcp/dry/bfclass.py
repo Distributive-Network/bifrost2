@@ -89,6 +89,7 @@ def make_dcp_class(js_class, **kwargs):
     opts.props['__getattr__'] = __getattr__
     opts.props['__setattr__'] = __setattr__
     opts.props['__str__'] = __str__
+    opts.props['get_js_class'] = staticmethod(lambda: js_class)
     new_class = type(opts.name, (object,), opts.props)
 
     return new_class
