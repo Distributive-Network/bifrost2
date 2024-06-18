@@ -13,11 +13,15 @@ class ClassRegistry:
                 return bfclass
         return None
 
-    def find_class_from_js_instance(self, js_instance):
+    def find_from_js_instance(self, js_instance):
         js_instanceof = pm.eval('(i,c) => i instanceof c')
-        return self.find(js_instance, lambda i,c : js_instanceof(i, c.js_ref))
 
-    def find_class_from_name(self, name):
+        def cmp(inst, clas):
+            return js_instanceof(inst, clas.get_js_class())
+
+        return self.find(js_instance, cmp)
+
+    def find_from_name(self, name):
         return self.find(name, lambda name,c : name == c.__name__)
 
     def __str__(self):
@@ -27,6 +31,4 @@ class ClassRegistry:
         return self.__str__()
 
 registry = ClassRegistry()
-
-import pdb; pdb.set_trace() # need to test with real js class / bfclass
 
