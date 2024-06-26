@@ -21,6 +21,7 @@ import pythonmonkey as pm
 
 from .fn import aio_run_wrapper, blocking_run_wrapper
 
+
 def make_dcp_class(js_class, **kwargs):
     """
     Factory of Classes function for generating pleasant proxies to JS Classes.
@@ -42,7 +43,7 @@ def make_dcp_class(js_class, **kwargs):
         'name': js_class_name(js_class),
         'props': {},
         'aio_methods': [],
-        'aio_ctor': False,
+        'aio_ctor': True,
         'force_blocking': [],
         'js_instance': None,
     }
@@ -114,6 +115,7 @@ def wrap_js_obj(js_obj, **kwargs):
     generic_obj = DCPClass()
 
     return generic_obj
+
 
 def js_class_name(JSClass):
     return pm.eval('x=>x.name')(JSClass)
