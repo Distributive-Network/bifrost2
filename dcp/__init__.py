@@ -1,15 +1,16 @@
 # NOTE TO SELF - have to load class registry before classes that use it
 
+from .dry import make_dcp_class, class_registry, wrap_js_obj, aio_run_wrapper, blocking_run_wrapper
+from .js import dcp_client as dcp_js
+from .sanity import sanity
 import sys
 from types import ModuleType as Module
 
 import pythonmonkey as pm
 PMDict = pm.eval('x={};x').__class__
-proto_own_prop_names = pm.eval('x=>(x?.prototype ? Object.getOwnPropertyNames(x?.prototype) : [])')
+proto_own_prop_names = pm.eval(
+    'x=>(x?.prototype ? Object.getOwnPropertyNames(x?.prototype) : [])')
 
-from .sanity import sanity
-from .js import dcp_client as dcp_js
-from .dry import make_dcp_class, class_registry, wrap_js_obj, aio_run_wrapper, blocking_run_wrapper
 
 # state
 init_memo = None
@@ -50,7 +51,10 @@ def init_dcp_module(py_parent, js_module, js_name):
         if isinstance(prop_ref, pm.JSFunctionProxy):
             # TODO: come up with better way to determine if class...
             if len(proto_own_prop_names(prop_ref)) > 1:
-                setattr(module, prop_name, make_dcp_class(prop_ref, name=prop_name))
+                new_bfclass = make_dcp_class(prop_ref, name=prop_name)
+                class_registry.register(new_bfclass)
+                setattr(module, prop_name, new_bfclass)
+
             # TODO: check if the function is known to return a promise...
             else:
                 setattr(module, prop_name, blocking_run_wrapper(prop_ref))

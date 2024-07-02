@@ -9,7 +9,8 @@ def aio_run_wrapper(leaky_async_fn):
         if inspect.isawaitable(return_value):
             return await return_value
 
-        print("AIO_RUN_WRAPPER_CASE_HIT_WHERE_FN_NOT_RETURN_CORO")  # TODO???
+        # TODO: check class registry if it should be wrapped instance
+
         return return_value
     return aio_fn
 

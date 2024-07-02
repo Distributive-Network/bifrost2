@@ -13,10 +13,9 @@ class TestDcpInitFunction(unittest.TestCase):
 
         self.assertEqual(ret_module, dcp)
 
-        job = job.Job('x=>{progress();return x+1', [1, 2, 3])
+        job = job.Job('x=>{progress();return x+1', [])
+        job.on('readystatechange', print)
 
-        # TODO - maybe I should just smoke test if a few functions exist?
-        #        How do I test this?
 
     def test_init_twice(self):
         dcp.init()

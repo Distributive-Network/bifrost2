@@ -16,6 +16,7 @@
 # @date         June 2024
 
 import asyncio
+import inspect
 import types
 import pythonmonkey as pm
 
@@ -43,7 +44,7 @@ def make_dcp_class(js_class, **kwargs):
         'name': js_class_name(js_class),
         'props': {},
         'aio_methods': [],
-        'aio_ctor': True,
+        'aio_ctor': True, # TODO maybe shouldn't be true
         'force_blocking': [],
         'js_instance': None,
     }
@@ -70,10 +71,7 @@ def make_dcp_class(js_class, **kwargs):
             return js_attr
 
         def method(*args, **kwargs):
-            if (name in opts.aio_methods or name in opts.force_blocking):
-                aio_attr = getattr(self.aio, name)
-                return asyncio.run(aio_attr(*args, **kwargs))
-            return js_attr(*args, **kwargs)
+            return asyncio.run(aio_run_wrapper(js_attr)(*args, **kwargs))
 
         return method
 
