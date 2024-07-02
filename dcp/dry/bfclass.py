@@ -31,9 +31,6 @@ def make_dcp_class(js_class, **kwargs):
     js_class (function): The JavaScript class to wrap.
     name (string: optional): The name of the new class to make.
     props  (dict, optional): Properties to add to the class.
-    aio_methods (list, optional): List of asynchronous method names to wrap.
-    aio_ctor (bool, optional): Whether the JS constructor is async.
-    force_blocking (list, optional): List certain methods as blocking.
     js_instance (JSObjectProxy, optional): set a specific JS ref for the class.
 
     Returns:
@@ -43,9 +40,6 @@ def make_dcp_class(js_class, **kwargs):
     optional_defaults = {
         'name': js_class_name(js_class),
         'props': {},
-        'aio_methods': [],
-        'aio_ctor': True, # TODO maybe shouldn't be true
-        'force_blocking': [],
         'js_instance': None,
     }
     opts = types.SimpleNamespace(**{**optional_defaults, **kwargs})
@@ -53,11 +47,9 @@ def make_dcp_class(js_class, **kwargs):
     def __init__(self, *args, **kwargs):
         if opts.js_instance is not None:
             self.js_ref = opts.js_instance
-        elif (opts.aio_ctor):
+        else:
             async_wrapped_ctor = aio_run_wrapper(pm.new(js_class))
             self.js_ref = asyncio.run(async_wrapped_ctor(*args, **kwargs))
-        else:
-            self.js_ref = pm.new(js_class)(*args, **kwargs)
 
         self.aio = AsyncIOMethods(self)
 
