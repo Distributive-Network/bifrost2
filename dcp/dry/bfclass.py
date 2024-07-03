@@ -48,8 +48,8 @@ def make_dcp_class(js_class, **kwargs):
         if opts.js_instance is not None:
             self.js_ref = opts.js_instance
         else:
-            async_wrapped_ctor = aio_run_wrapper(pm.new(js_class))
-            self.js_ref = asyncio.run(async_wrapped_ctor(*args, **kwargs))
+            async_wrapped_ctor = blocking_run_wrapper(pm.new(js_class))
+            self.js_ref = async_wrapped_ctor(*args, **kwargs)
 
         self.aio = AsyncIOMethods(self)
 
@@ -63,7 +63,7 @@ def make_dcp_class(js_class, **kwargs):
             return js_attr
 
         def method(*args, **kwargs):
-            return asyncio.run(aio_run_wrapper(js_attr)(*args, **kwargs))
+            return blocking_run_wrapper(js_attr)(*args, **kwargs)
 
         return method
 
