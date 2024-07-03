@@ -1,6 +1,9 @@
 import asyncio
 import inspect
 
+# this CAN'T LIVE HERE!!! TODO XXX but temporarily putting it here
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 def aio_run_wrapper(leaky_async_fn):
     # leaky_asyn_fn may not return a corotine but still require an event loop
@@ -17,6 +20,6 @@ def aio_run_wrapper(leaky_async_fn):
 
 def blocking_run_wrapper(async_fn):
     def blocking_fn(*args, **kwargs):
-        return asyncio.run(aio_run_wrapper(async_fn)(*args, **kwargs))
+        return loop.run_until_complete(aio_run_wrapper(async_fn)(*args, **kwargs))
     return blocking_fn
 
