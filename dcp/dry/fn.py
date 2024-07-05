@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-from . import class_manager
 
 # this CAN'T LIVE HERE!!! TODO XXX but temporarily putting it here
 loop = asyncio.new_event_loop()

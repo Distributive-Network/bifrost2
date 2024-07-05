@@ -65,18 +65,16 @@ def make_dcp_class(js_class, name=None):
 
     return new_class
 
+# TODO: ew. The bfclass uses the class manager? Shouldn't the class manager
+# use bfclass? REFACTOR LATER
+def wrap_js_obj(js_val):
+    if isinstance(js_val, pm.JSObjectProxy):
+        bfclass = class_manager.reg.find(js_val)
 
-def wrap_js_obj(js_obj):
-    if not isinstance(js_obj, pm.JSObjectProxy):
-        return js_obj
+        if bfclass is None:
+            bfclass = make_dcp_class(js.utils.obj_ctor(js_val))
+            bfclass = class_manager.reg.add(bfclass)
 
-    # check if its in the class reg
-    matching_class = class_manager.reg.find(js_obj)
-
-    if matching_class is None:
-        JSClass = js.utils.obj_constructor(js_obj)
-        matching_class = make_dcp_class(JSClass)
-        class_manager.reg.add(matching_class)
-
-    return matching_class(js_obj)
+        return bfclass(js_val)
+    return js_val
 

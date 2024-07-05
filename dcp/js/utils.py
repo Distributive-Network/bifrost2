@@ -19,7 +19,7 @@ def instanceof(js_instance, JSClass):
     return pm.eval('(i,c) => i instanceof c')(js_instance, JSClass)
 
 
-def obj_constructor(js_instance):
+def obj_ctor(js_instance):
     return pm.eval('x => x.constructor')(js_instance)
 
 
