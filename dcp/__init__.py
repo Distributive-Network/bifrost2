@@ -3,7 +3,6 @@
 from .dry import make_dcp_class, class_manager, wrap_js_obj, aio_run_wrapper, blocking_run_wrapper
 from . import js
 from .api import compute_for as api_compute_for #TODO - we should handle compute for and inheritance in same place /:
-from .sanity import sanity
 import sys
 from types import ModuleType as Module
 
@@ -66,5 +65,5 @@ def init_dcp_module(py_parent, js_module, js_name):
             setattr(module, prop_name, prop_ref)
 
 
-__all__ = ["init", "sanity"]
+__all__ = ["init"]
 
