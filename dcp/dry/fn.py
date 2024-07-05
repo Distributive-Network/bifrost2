@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-from . import classes
+from . import class_manager
 
 # this CAN'T LIVE HERE!!! TODO XXX but temporarily putting it here
 loop = asyncio.new_event_loop()
@@ -13,7 +13,7 @@ def aio_run_wrapper(leaky_async_fn):
         if inspect.isawaitable(return_value):
             return await return_value
 
-        # TODO: check class registry if it should be wrapped instance
+        # TODO: check class reg if it should be wrapped instance
         # if obj is py obj
             # find from ref
             # if not found

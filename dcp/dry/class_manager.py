@@ -49,5 +49,5 @@ class ClassRegistry:
         return self.__str__()
 
 
-registry = ClassRegistry()
+reg = ClassRegistry()
 

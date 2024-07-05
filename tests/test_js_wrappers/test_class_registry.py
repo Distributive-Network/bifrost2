@@ -61,21 +61,21 @@ PyHuma = make_class(JSHuman)
 class TestClassRegistry(unittest.TestCase):
     def test_monolithic_add_retrieve(self):
         def test_adding_and_retrieval():
-            dry.class_registry.register(PyRect)
-            dry.class_registry.register(PyCoff)
-            dry.class_registry.register(PyHuma)
+            dry.class_manager.reg.register(PyRect)
+            dry.class_manager.reg.register(PyCoff)
+            dry.class_manager.reg.register(PyHuma)
 
             # retrieval by JS Class name
-            Class = dry.class_registry.find_from_name('JSHuman')
+            Class = dry.class_manager.reg.find_from_name('JSHuman')
             self.assertTrue(Class.__name__, 'JSHuman')
 
             # retrieval by JS Class instance
             js_inst = pm.new(JSRectangle)(7, 11)
-            Class = dry.class_registry.find_from_js_instance(js_inst)
+            Class = dry.class_manager.reg.find_from_js_instance(js_inst)
             self.assertTrue(Class.__name__, 'JSRectangle')
 
         def test_baseclassing_from_retrieval():
-            class PyRect2(dry.class_registry.find_from_name('JSRectangle')):
+            class PyRect2(dry.class_manager.reg.find_from_name('JSRectangle')):
                 def __str__(self):
                     return "changed"
 
@@ -89,11 +89,11 @@ class TestClassRegistry(unittest.TestCase):
             self.assertEqual(my_inst.area(), 3 * 13 * 100)  # overwritten
 
         def test_replacement():
-            class PyCoffee2(dry.class_registry.find_from_name('JSCoffee')):
+            class PyCoffee2(dry.class_manager.reg.find('JSCoffee')):
                 def __str__(self):
                     return "this was changed"
 
-            dry.class_registry.replace_from_name('JSCoffee', PyCoffee2)
+            dry.class_manager.reg.replace_from_name('JSCoffee', PyCoffee2)
 
             ph2 = PyCoffee2()
             self.assertEqual(str(ph2), "this was changed")

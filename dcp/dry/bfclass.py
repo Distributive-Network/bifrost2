@@ -7,7 +7,7 @@ import asyncio
 import types
 import pythonmonkey as pm
 from .fn import aio_run_wrapper, blocking_run_wrapper
-from . import classes
+from . import class_manager 
 from .. import js
 
 
@@ -70,13 +70,13 @@ def wrap_js_obj(js_obj):
     if not isinstance(js_obj, pm.JSObjectProxy):
         return js_obj
 
-    # check if its in the class registry
-    matching_class = classes.registry.find(js_obj)
+    # check if its in the class reg
+    matching_class = class_manager.reg.find(js_obj)
 
     if matching_class is None:
         JSClass = js.utils.obj_constructor(js_obj)
         matching_class = make_dcp_class(JSClass)
-        classes.registry.register(matching_class)
+        class_manager.reg.register(matching_class)
 
     return matching_class(js_obj)
 
