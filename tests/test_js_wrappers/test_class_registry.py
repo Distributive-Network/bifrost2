@@ -61,9 +61,9 @@ PyHuma = make_class(JSHuman)
 class TestClassRegistry(unittest.TestCase):
     def test_monolithic_add_retrieve(self):
         def test_adding_and_retrieval():
-            dry.class_manager.reg.register(PyRect)
-            dry.class_manager.reg.register(PyCoff)
-            dry.class_manager.reg.register(PyHuma)
+            dry.class_manager.reg.add(PyRect)
+            dry.class_manager.reg.add(PyCoff)
+            dry.class_manager.reg.add(PyHuma)
 
             # retrieval by JS Class name
             Class = dry.class_manager.reg.find_from_name('JSHuman')

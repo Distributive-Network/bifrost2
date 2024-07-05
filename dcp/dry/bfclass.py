@@ -76,7 +76,7 @@ def wrap_js_obj(js_obj):
     if matching_class is None:
         JSClass = js.utils.obj_constructor(js_obj)
         matching_class = make_dcp_class(JSClass)
-        class_manager.reg.register(matching_class)
+        class_manager.reg.add(matching_class)
 
     return matching_class(js_obj)
 

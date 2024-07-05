@@ -18,7 +18,7 @@ class ClassRegistry:
         else:
             self.register(new_class)
 
-    def register(self, bfclass):
+    def add(self, bfclass):
         # TODO: should probably check for api inheritance here?
         self._list.append(bfclass)
 

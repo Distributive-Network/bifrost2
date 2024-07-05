@@ -51,7 +51,7 @@ def init_dcp_module(py_parent, js_module, js_name):
                 new_bfclass = class_manager.reg.find(prop_ref)
                 if new_bfclass is None:
                     new_bfclass = make_dcp_class(prop_ref, name=prop_name)
-                    class_manager.reg.register(new_bfclass)
+                    class_manager.reg.add(new_bfclass)
 
                 # TODO - need to make this more prorgramatic and dry - maybe this belongs in a class manager..? TODO XXX TODO XXX
                 if prop_name == 'Job':
