@@ -88,19 +88,8 @@ class TestClassRegistry(unittest.TestCase):
             self.assertEqual(my_inst.calcArea(), 3 * 13)    # existing
             self.assertEqual(my_inst.area(), 3 * 13 * 100)  # overwritten
 
-        def test_replacement():
-            class PyCoffee2(dry.class_manager.reg.find('JSCoffee')):
-                def __str__(self):
-                    return "this was changed"
-
-            dry.class_manager.reg.replace_from_name('JSCoffee', PyCoffee2)
-
-            ph2 = PyCoffee2()
-            self.assertEqual(str(ph2), "this was changed")
-
         test_adding_and_retrieval()
         test_baseclassing_from_retrieval()
-        test_replacement()
 
 
 if __name__ == '__main__':

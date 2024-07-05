@@ -11,19 +11,9 @@ class ClassRegistry:
     def _find(self, cmp):
         return next((c for c in self._list if cmp(c)), None)
 
-    def _replace_or_register(self, new_class, cmp):
-        existing = self._find(cmp)
-        if existing:
-            self._list[self._list.index(existing)] = new_class
-        else:
-            self.register(new_class)
-
     def add(self, bfclass):
         # TODO: should probably check for api inheritance here?
         self._list.append(bfclass)
-
-    def replace_from_name(self, name, new_class):
-        self._replace_or_register(new_class, lambda c: c.__name__ == name)
 
     def find_from_js_instance(self, js_inst):
         return self._find(lambda c: js.utils.instanceof(js_inst, c.get_js_class()))
