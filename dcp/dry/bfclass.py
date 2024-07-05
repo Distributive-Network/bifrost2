@@ -10,7 +10,7 @@ from .fn import aio_run_wrapper, blocking_run_wrapper
 from .. import js
 
 
-def make_dcp_class(js_class, name=None, js_instance=None):
+def make_dcp_class(js_class, name=None):
     name = name or js.utils.class_name(js_class)
 
     def __init__(self, *args, **kwargs):
@@ -22,7 +22,14 @@ def make_dcp_class(js_class, name=None, js_instance=None):
             async_wrapped_ctor = blocking_run_wrapper(pm.new(js_class))
             self.js_ref = async_wrapped_ctor(*args, **kwargs)
 
-        self.aio = AsyncIOMethods(self)
+        class AsyncAttrs:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def __getattr__(self, name):
+                return aio_run_wrapper(self.parent.js_ref[name])
+
+        self.aio = AsyncAttrs(self)
 
     def __getattr__(self, name):
         js_attr = self.js_ref[name]
@@ -58,19 +65,10 @@ def make_dcp_class(js_class, name=None, js_instance=None):
     return new_class
 
 
-class AsyncIOMethods:
-    def __init__(self, parent):
-        self.parent = parent
-
-    def __getattr__(self, name):
-        return aio_run_wrapper(self.parent.js_ref[name])
-
-
 def wrap_js_obj(js_obj):
     if not isinstance(js_obj, pm.JSObjectProxy):
         return js_obj
     JSClass = js.utils.obj_constructor(js_obj)
     DCPClass = make_dcp_class(JSClass)
     return DCPClass(js_obj)
-
 
