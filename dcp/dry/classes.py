@@ -1,5 +1,7 @@
 import pythonmonkey as pm
 
+# TODO: rename to class manager
+# TODO: add stuff for api inheritance setup
 
 class ClassRegistry:
     def __init__(self):
@@ -16,6 +18,7 @@ class ClassRegistry:
             self.register(new_class)
 
     def register(self, bfclass):
+        # TODO: should probably check for api inheritance here?
         self._list.append(bfclass)
 
     def replace_from_name(self, name, new_class):
