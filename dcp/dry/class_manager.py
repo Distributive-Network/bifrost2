@@ -1,8 +1,7 @@
 import pythonmonkey as pm
 from .. import js
+from .. import api
 
-# TODO: rename to class manager
-# TODO: add stuff for api inheritance setup
 
 class ClassRegistry:
     def __init__(self):
@@ -11,9 +10,13 @@ class ClassRegistry:
     def _find(self, cmp):
         return next((c for c in self._list if cmp(c)), None)
 
+    # TODO: this feels wrong, it's doing too many things. it should just add
+    # classes to the registry... instead it also does the inheritance stuff. ):
     def add(self, bfclass):
-        # TODO: should probably check for api inheritance here?
+        if base_class := api.inheritance_hooks.get(bfclass.__name__):
+            bfclass = type(bfclass.__name__, (bfclass,), dict(base_class.__dict__))
         self._list.append(bfclass)
+        return bfclass
 
     def find_from_js_instance(self, js_inst):
         return self._find(lambda c: js.utils.instanceof(js_inst, c.get_js_class()))

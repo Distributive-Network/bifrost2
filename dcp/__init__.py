@@ -2,8 +2,7 @@
 
 from .dry import make_dcp_class, class_manager, wrap_js_obj, aio_run_wrapper, blocking_run_wrapper
 from . import js
-from .api import compute_for as api_compute_for
-from .api import Job as api_Job
+from .api import compute_for as api_compute_for #TODO - we should handle compute for and inheritance in same place /:
 from .sanity import sanity
 import sys
 from types import ModuleType as Module
@@ -51,11 +50,7 @@ def init_dcp_module(py_parent, js_module, js_name):
                 new_bfclass = class_manager.reg.find(prop_ref)
                 if new_bfclass is None:
                     new_bfclass = make_dcp_class(prop_ref, name=prop_name)
-                    class_manager.reg.add(new_bfclass)
-
-                # TODO - need to make this more prorgramatic and dry - maybe this belongs in a class manager..? TODO XXX TODO XXX
-                if prop_name == 'Job':
-                    new_bfclass = type('Job', (new_bfclass,), dict(api_Job.__dict__))
+                    new_bfclass = class_manager.reg.add(new_bfclass)
 
                 setattr(module, prop_name, new_bfclass)
 
