@@ -7,6 +7,7 @@ import asyncio
 import types
 import pythonmonkey as pm
 from .fn import aio_run_wrapper, blocking_run_wrapper
+from . import classes
 from .. import js
 
 
@@ -57,7 +58,7 @@ def make_dcp_class(js_class, name=None):
         '__getattr__': __getattr__,
         '__setattr__': __setattr__,
         '__str__': __str__,
-        'get_js_class': staticmethod(lambda: js_class)
+        'get_js_class': staticmethod(lambda: js_class),
     }
 
     new_class = type(name, (object,), props)
@@ -68,7 +69,14 @@ def make_dcp_class(js_class, name=None):
 def wrap_js_obj(js_obj):
     if not isinstance(js_obj, pm.JSObjectProxy):
         return js_obj
-    JSClass = js.utils.obj_constructor(js_obj)
-    DCPClass = make_dcp_class(JSClass)
-    return DCPClass(js_obj)
+
+    # check if its in the class registry
+    matching_class = classes.registry.find(js_obj)
+
+    if matching_class is None:
+        JSClass = js.utils.obj_constructor(js_obj)
+        matching_class = make_dcp_class(JSClass)
+        classes.registry.register(matching_class)
+
+    return matching_class(js_obj)
 

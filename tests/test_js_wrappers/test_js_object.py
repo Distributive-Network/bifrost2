@@ -99,6 +99,8 @@ Human;
 
         self.assertTrue(py_obj.address == hex_code)
 
+        self.assertTrue(isinstance(py_obj, dcp.wallet.Address))
+
 
 if __name__ == '__main__':
     unittest.main()

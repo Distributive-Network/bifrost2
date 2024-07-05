@@ -1,4 +1,5 @@
 import pythonmonkey as pm
+from .. import js
 
 # TODO: rename to class manager
 # TODO: add stuff for api inheritance setup
@@ -25,11 +26,21 @@ class ClassRegistry:
         self._replace_or_register(new_class, lambda c: c.__name__ == name)
 
     def find_from_js_instance(self, js_inst):
-        js_instanceof = pm.eval('(i,c) => i instanceof c')
-        return self._find(lambda c: js_instanceof(js_inst, c.get_js_class()))
+        return self._find(lambda c: js.utils.instanceof(js_inst, c.get_js_class()))
 
     def find_from_name(self, name):
         return self._find(lambda c: c.__name__ == name)
+
+    def find_from_js_ctor(self, js_ctor):
+        return self._find(lambda c: js.utils.equals(c.get_js_class(), js_ctor))
+
+    def find(self, value):
+        if isinstance(value, pm.JSFunctionProxy):
+            return self.find_from_js_ctor(value)
+        elif isinstance(value, pm.JSObjectProxy):
+            return self.find_from_js_instance(value)
+        elif isinstance(value, str):
+            return self.find_from_name(value)
 
     def __str__(self):
         return str(self._list)
