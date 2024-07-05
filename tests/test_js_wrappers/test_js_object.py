@@ -51,7 +51,7 @@ class Coffee
 Coffee;
         """)
 
-        Coffee = make_class(MyClass, aio_methods=["brew"])
+        Coffee = make_class(MyClass)
         cup_of_joe = Coffee()
 
         # should be able to sleep synchronously
@@ -80,7 +80,7 @@ class Human
 Human;
         """)
 
-        HumanPy = make_class(Human, aio_ctor=True)
+        HumanPy = make_class(Human)
 
         # verify constructor promise has been resolved
         baby = HumanPy('Joe')
