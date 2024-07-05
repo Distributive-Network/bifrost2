@@ -7,14 +7,15 @@ import asyncio
 import types
 import pythonmonkey as pm
 from .fn import aio_run_wrapper, blocking_run_wrapper
+from .. import js
 
 
 def make_dcp_class(js_class, name=None, js_instance=None):
-    name = name or js_class_name(js_class)
+    name = name or js.utils.class_name(js_class)
 
     def __init__(self, *args, **kwargs):
         # if the sole argument to the ctor is a js instance, use it as the ref
-        if len(args) == 1 and js_instanceof(args[0], js_class):
+        if len(args) == 1 and js.utils.instanceof(args[0], js_class):
             self.js_ref = args[0]
         # otherwise, instantiate a new underlying js ref using the ctor args
         else:
@@ -68,15 +69,8 @@ class AsyncIOMethods:
 def wrap_js_obj(js_obj):
     if not isinstance(js_obj, pm.JSObjectProxy):
         return js_obj
-    JSClass = pm.eval('x => x.constructor')(js_obj)
+    JSClass = js.utils.obj_constructor(js_obj)
     DCPClass = make_dcp_class(JSClass)
     return DCPClass(js_obj)
 
-
-def js_class_name(JSClass):
-    return pm.eval('x => x.name')(JSClass)
-
-
-def js_instanceof(js_instance, JSClass):
-    return pm.eval('(i,c) => i instanceof c')(js_instance, JSClass)
 
