@@ -6,7 +6,7 @@
 import asyncio
 import types
 import pythonmonkey as pm
-from .fn import aio_run_wrapper, blocking_run_wrapper
+from .aio import asyncify, blockify
 from . import class_manager 
 from .. import js
 
@@ -20,7 +20,7 @@ def make_dcp_class(js_class, name=None):
             self.js_ref = args[0]
         # otherwise, instantiate a new underlying js ref using the ctor args
         else:
-            async_wrapped_ctor = blocking_run_wrapper(pm.new(js_class))
+            async_wrapped_ctor = blockify(pm.new(js_class))
             self.js_ref = async_wrapped_ctor(*args, **kwargs)
 
         class AsyncAttrs:
@@ -28,7 +28,7 @@ def make_dcp_class(js_class, name=None):
                 self.parent = parent
 
             def __getattr__(self, name):
-                return aio_run_wrapper(self.parent.js_ref[name])
+                return asyncify(self.parent.js_ref[name])
 
         self.aio = AsyncAttrs(self)
 
@@ -41,7 +41,7 @@ def make_dcp_class(js_class, name=None):
                 return js_attr
 
         def method(*args, **kwargs):
-            return blocking_run_wrapper(js_attr)(*args, **kwargs)
+            return blockify(js_attr)(*args, **kwargs)
         return method
 
     def __setattr__(self, name, value):

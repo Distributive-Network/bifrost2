@@ -2,16 +2,18 @@ import asyncio
 import inspect
 
 # this CAN'T LIVE HERE!!! TODO XXX but temporarily putting it here
+# TODO: actually, this might be the best place for this to live
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-def aio_run_wrapper(leaky_async_fn):
+def asyncify(leaky_async_fn):
     # leaky_asyn_fn may not return a corotine but still require an event loop
     async def aio_fn(*args, **kwargs):
         return_value = leaky_async_fn(*args, **kwargs)
         if inspect.isawaitable(return_value):
             return await return_value
 
+        # TODO: ignor the following todo, it doesn't belong in the aio class
         # TODO: check class reg if it should be wrapped instance
         # if obj is py obj
             # find from ref
@@ -23,8 +25,8 @@ def aio_run_wrapper(leaky_async_fn):
     return aio_fn
 
 
-def blocking_run_wrapper(async_fn):
+def blockify(async_fn):
     def blocking_fn(*args, **kwargs):
-        return loop.run_until_complete(aio_run_wrapper(async_fn)(*args, **kwargs))
+        return loop.run_until_complete(asyncify(async_fn)(*args, **kwargs))
     return blocking_fn
 
