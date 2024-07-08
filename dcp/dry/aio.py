@@ -1,3 +1,16 @@
+"""
+Manage asynchronous functions involving the PythonMonkey event loop.
+
+Functions:
+- asyncify(leaky_async_fn): make a leaky PM JS promise not leak.
+- blockify(async_fn): make a leaky PM JS promise not leak and block.
+
+Properties:
+- loop: the single event loop used for all PythonMonkey ev loop interactions.
+
+Author: Will Pringle <will@distributive.network>
+Date: June 2024
+"""
 import asyncio
 import inspect
 

@@ -1,6 +1,6 @@
 # NOTE TO SELF - have to load class reg before classes that use it
 
-from .dry import make_dcp_class, class_manager, wrap_js_obj, asyncify, blockify
+from .dry import class_manager, aio
 from . import js
 from .api import compute_for as api_compute_for #TODO - we should handle compute for and inheritance in same place /:
 import sys
@@ -48,17 +48,17 @@ def init_dcp_module(py_parent, js_module, js_name):
             if js.utils.isclass(prop_ref):
                 new_bfclass = class_manager.reg.find(prop_ref)
                 if new_bfclass is None:
-                    new_bfclass = make_dcp_class(prop_ref, name=prop_name)
+                    new_bfclass = class_manager.wrap_class(prop_ref, name=prop_name)
                     new_bfclass = class_manager.reg.add(new_bfclass)
 
                 setattr(module, prop_name, new_bfclass)
 
             else:
-                setattr(module, prop_name, blockify(prop_ref))
+                setattr(module, prop_name, aio.blockify(prop_ref))
 
         # js object
         elif prop_ref is js.utils.PMDict:
-            setattr(module, prop_name, wrap_js_obj(prop_ref))
+            setattr(module, prop_name, class_manager.wrap_obj(prop_ref))
 
         # py dict
         else:

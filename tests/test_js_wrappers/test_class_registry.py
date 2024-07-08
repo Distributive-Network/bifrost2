@@ -1,7 +1,6 @@
 import unittest
 import pythonmonkey as pm
 from dcp import dry
-from dcp.dry import make_dcp_class as make_class
 
 JSRectangle = pm.eval("""
 class JSRectangle
@@ -53,9 +52,9 @@ class JSHuman
 JSHuman;
 """)
 
-PyRect = make_class(JSRectangle)
-PyCoff = make_class(JSCoffee)
-PyHuma = make_class(JSHuman)
+PyRect = dry.class_manager.wrap_class(JSRectangle)
+PyCoff = dry.class_manager.wrap_class(JSCoffee)
+PyHuma = dry.class_manager.wrap_class(JSHuman)
 
 
 class TestClassRegistry(unittest.TestCase):

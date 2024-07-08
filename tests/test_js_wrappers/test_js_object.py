@@ -3,8 +3,7 @@ import asyncio
 import inspect
 import pythonmonkey as pm
 import dcp
-from dcp.dry import make_dcp_class as make_class
-from dcp.dry import wrap_js_obj
+from dcp.dry import class_manager
 
 
 class TestJSObjectFunction(unittest.TestCase):
@@ -29,7 +28,7 @@ class Rectangle
 Rectangle;
         """)
 
-        PyRect = make_class(JSRect)
+        PyRect = class_manager.wrap_class(JSRect)
         my_rect = PyRect(2, 7)
 
         self.assertTrue(my_rect.area == 2 * 7)
@@ -51,7 +50,7 @@ class Coffee
 Coffee;
         """)
 
-        Coffee = make_class(MyClass)
+        Coffee = class_manager.wrap_class(MyClass)
         cup_of_joe = Coffee()
 
         # should be able to sleep synchronously
@@ -80,7 +79,7 @@ class Human
 Human;
         """)
 
-        HumanPy = make_class(Human)
+        HumanPy = class_manager.wrap_class(Human)
 
         # verify constructor promise has been resolved
         baby = HumanPy('Joe')
@@ -92,10 +91,10 @@ Human;
         dcp.init()
         Address = pm.globalThis.dcp.wallet.Address
 
-        make_class(Address)
+        class_manager.wrap_class(Address)
 
         address = pm.new(Address)(hex_code)
-        py_obj = wrap_js_obj(address)
+        py_obj = class_manager.wrap_obj(address)
 
         self.assertTrue(py_obj.address == hex_code)
 
