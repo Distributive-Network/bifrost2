@@ -48,12 +48,11 @@ def wrap_class(js_class, name=None):
     def __getattr__(self, name):
         js_attr = self.js_ref[name]
         if not callable(js_attr):
-            if isinstance(js_attr, pm.JSObjectProxy):
-                return wrap_obj(js_attr)
-            return js_attr
+            return wrap_obj(js_attr)
 
         def method(*args, **kwargs):
-            return blockify(js_attr)(*args, **kwargs)
+            ret_val = blockify(js_attr)(*args, **kwargs)
+            return wrap_obj(ret_val)
         return method
 
     def __setattr__(self, name, value):
@@ -63,7 +62,8 @@ def wrap_class(js_class, name=None):
             self.js_ref[name] = value
 
     def __str__(self):
-        return str(self.js_ref)
+        return name
+        #return str(self.js_ref)
 
     props = {
         '__init__': __init__,

@@ -2,7 +2,7 @@
 
 from .dry import class_manager, aio
 from . import js
-from .api import compute_for as api_compute_for #TODO - we should handle compute for and inheritance in same place /:
+from . import api
 import sys
 from types import ModuleType as Module
 
@@ -26,6 +26,9 @@ def init(**kwargs) -> Module:
     # build dcp modules
     for name in pm.globalThis.dcp.keys():
         init_dcp_module(sys.modules[__name__], pm.globalThis.dcp[name], name)
+
+    # add some api top level imports
+    setattr(sys.modules[__name__], "compute_for", api.compute_for_maker(), )
 
     init_memo = sys.modules[__name__]
     return init_memo

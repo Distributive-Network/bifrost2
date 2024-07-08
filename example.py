@@ -5,10 +5,9 @@ import pythonmonkey as pm
 import dcp
 dcp.init()
 
-from dcp import job
+from dcp import compute_for
 
-
-my_j = job.Job('x=>{progress();return x+x;}', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+my_j = compute_for([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'x=>{progress();return x+x;}')
 
 my_j.on('readystatechange', print)
 my_j.on('result', print)
