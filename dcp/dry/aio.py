@@ -1,8 +1,6 @@
 import asyncio
 import inspect
 
-# this CAN'T LIVE HERE!!! TODO XXX but temporarily putting it here
-# TODO: actually, this might be the best place for this to live
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
@@ -12,14 +10,6 @@ def asyncify(leaky_async_fn):
         return_value = leaky_async_fn(*args, **kwargs)
         if inspect.isawaitable(return_value):
             return await return_value
-
-        # TODO: ignor the following todo, it doesn't belong in the aio class
-        # TODO: check class reg if it should be wrapped instance
-        # if obj is py obj
-            # find from ref
-            # if not found
-                # register it as new class
-            # return the new instance of that class with the ref
 
         return return_value
     return aio_fn
