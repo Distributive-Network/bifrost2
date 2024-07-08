@@ -30,7 +30,14 @@ class ClassRegistry:
         return bfclass
 
     def find_from_js_instance(self, js_inst):
-        return self._find(lambda c: js.utils.instanceof(js_inst, c.get_js_class()))
+        def cmp(c):
+            js_inst_is_instance = js.utils.instanceof(js_inst, c.get_js_class())
+
+            instance_cname = js.utils.class_name(js.utils.obj_ctor(js_inst))
+            class_cname = js.utils.class_name(c.get_js_class())
+
+            return js_inst_is_instance and instance_cname == class_cname
+        return self._find(cmp)
 
     def find_from_name(self, name):
         return self._find(lambda c: c.__name__ == name)
