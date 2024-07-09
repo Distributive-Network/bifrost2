@@ -43,7 +43,7 @@ def wrap_class(js_class, name=None):
             def __getattr__(self, name):
                 return asyncify(self.parent.js_ref[name])
 
-        self.aio = AsyncAttrs(self)
+        object.__setattr__(self, 'aio', AsyncAttrs(self))
 
     def __getattr__(self, name):
         js_attr = self.js_ref[name]
@@ -62,8 +62,11 @@ def wrap_class(js_class, name=None):
             self.js_ref[name] = value
 
     def __str__(self):
-        return name
-        #return str(self.js_ref)
+        # Workaround required since PythonMonkey will encounter errors while str values
+        try:
+            return str(self.js_ref)
+        except:
+            return name
 
     props = {
         '__init__': __init__,
@@ -80,6 +83,9 @@ def wrap_class(js_class, name=None):
 
 def wrap_obj(js_val):
     """Wraps a PythonMonkey JS Proxy instance as a Pythonic Class instance"""
+    if bfclass := ugly_duck_type_check(js_val):
+        return bfclass(js_val)
+
     if isinstance(js_val, pm.JSObjectProxy):
         bfclass = reg.find(js_val)
 
@@ -89,4 +95,14 @@ def wrap_obj(js_val):
 
         return bfclass(js_val)
     return js_val
+
+# TODO: there must be a better way to check for this...
+def ugly_duck_type_check(js_val):
+    """Check via duck typing what the js_val is."""
+
+    # check if it's a result handle
+    result_handle_props = ['toJSON', 'newResult', 'getLength', 'slice', 'fetch']
+    if js.utils.class_name(js.utils.obj_ctor(js_val)) == 'Function':
+        if next((x for x in result_handle_props if js_val[x] is None), None) is None:
+            return reg.find('ResultHandle')
 

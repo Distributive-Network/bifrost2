@@ -25,5 +25,5 @@ my_j.wait()
 # res = my_j.wait()
 
 print(">>>>>>>>>>>>>>>>>>>>>>>>>> RESULTS ARE IN")
-print(pm.eval('Array.from')(res))
+print(res)
 
