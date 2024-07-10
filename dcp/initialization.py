@@ -64,6 +64,22 @@ class _DynamicModule(Module):
         return None
 
 
+class AIOModule(Module):
+    """For getting AIO."""
+    def __init__(self, name, js_module):
+        super().__init__(name)
+        self._js = js_module
+
+    def __getattr__(self, name):
+        js_attr = self._js[name]
+
+        if js_attr is None:
+            return None
+
+        if callable(js_attr):
+            return aio.asyncify(js_attr)
+
+
 def init_dcp_module(py_parent, js_module, js_name):
     """Builds the dcp module and sub modules"""
     underscore_name = f"{js_name.replace('-', '_')}"
@@ -75,6 +91,10 @@ def init_dcp_module(py_parent, js_module, js_name):
 
     # add the new module as a submodule of the root module
     setattr(py_parent, underscore_name, module)
+
+    # add the aio api
+    aio_submodule = AIOModule(f'{module_name}.aio', js_module)
+    setattr(module, 'aio', aio_submodule)
 
     for prop_name, prop_ref in js_module.items():
         setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
@@ -99,6 +119,7 @@ def make_init_fn(dcp_module) -> Callable:
 
         # add some api top level imports
         setattr(dcp_module, "compute_for", api.compute_for_maker(), )
+
 
         INIT_MEMO = dcp_module
         return INIT_MEMO
