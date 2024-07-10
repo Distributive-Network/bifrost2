@@ -1,3 +1,13 @@
+"""
+Dynamically initialize the dcp mode.
+
+Traverses through the dcp-client CJS modules to generate the dcp Python module
+and build a registry of classes along the way which are automatically wrapped.
+
+Author: Will Pringle <will@distributive.network>
+Date: June 2024
+"""
+
 import sys
 from types import ModuleType as Module
 from typing import Callable
@@ -6,11 +16,12 @@ from .dry import class_manager, aio
 from . import js
 from . import api
 
-
 # state
-init_memo = None
+INIT_MEMO = None
+
 
 def init_dcp_module(py_parent, js_module, js_name):
+    """builds the dcp module and class registry"""
     underscore_name = f"{js_name.replace('-', '_')}"
     module_name = f"{py_parent.__name__}.{underscore_name}"
     module = Module(module_name)
@@ -45,16 +56,17 @@ def init_dcp_module(py_parent, js_module, js_name):
 
 
 def make_init_fn(dcp_module) -> Callable:
+    """Creates the init function to return."""
     def init(**kwargs) -> Module:
-        global init_memo
+        global INIT_MEMO
 
         # no-op on multiple initializations
-        if init_memo is not None:
-            return init_memo
+        if INIT_MEMO is not None:
+            return INIT_MEMO
 
         # initialize dcp
         js.dcp_client['init'](**kwargs)
-        init_memo = True
+        INIT_MEMO = True
 
         # build dcp modules
         for name in pm.globalThis.dcp.keys():
@@ -63,8 +75,8 @@ def make_init_fn(dcp_module) -> Callable:
         # add some api top level imports
         setattr(dcp_module, "compute_for", api.compute_for_maker(), )
 
-        init_memo = dcp_module
-        return init_memo
+        INIT_MEMO = dcp_module
+        return INIT_MEMO
 
     return init
 
