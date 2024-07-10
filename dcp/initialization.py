@@ -38,63 +38,31 @@ def _wrap_js(prop_name, prop_ref):
                 return _wrap_js('dynamically_accessed_property', ret_val)
             return fn_wrapper
 
-    # js object
     elif isinstance(prop_ref, pm.JSObjectProxy):
         return class_manager.wrap_obj(prop_ref)
 
     elif isinstance(prop_ref, pm.null.__class__):
         return None
 
-    # py dict
-    else:
-        return prop_ref
-
-    return None
-
-
-class _DynamicModule(Module):
-    """Dynamic get attribute for 'hidden' JS properties on a module."""
-    def __init__(self, name, js_module):
-        super().__init__(name)
-        self._js = js_module
-
-    def __getattr__(self, name):
-        if self._js[name] is not None:
-            return _wrap_js(name, self._js[name])
-        return None
-
-
-class AIOModule(Module):
-    """For getting AIO."""
-    def __init__(self, name, js_module):
-        super().__init__(name)
-        self._js = js_module
-
-    def __getattr__(self, name):
-        js_attr = self._js[name]
-
-        if js_attr is None:
-            return None
-
-        if callable(js_attr):
-            return aio.asyncify(js_attr)
+    return prop_ref
 
 
 def init_dcp_module(py_parent, js_module, js_name):
     """Builds the dcp module and sub modules"""
     underscore_name = f"{js_name.replace('-', '_')}"
     module_name = f"{py_parent.__name__}.{underscore_name}"
-    module = _DynamicModule(module_name, js_module)
+
+    # TODO this is quite ugly
+    BfDyn = class_manager.make_new_class(lambda *args, **kwargs: js_module, 'Module', mutate_js=False)
+    BfDyn = type(Module.__name__, (Module,), dict(BfDyn.__dict__))
+    module = BfDyn()
+
     module.__file__ = f"<dynamically created bifrost2 module: {module_name}>"
     module._js = js_module
     sys.modules[module_name] = module
 
     # add the new module as a submodule of the root module
     setattr(py_parent, underscore_name, module)
-
-    # add the aio api
-    aio_submodule = AIOModule(f'{module_name}.aio', js_module)
-    setattr(module, 'aio', aio_submodule)
 
     for prop_name, prop_ref in js_module.items():
         setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
