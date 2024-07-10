@@ -20,11 +20,55 @@ from . import api
 INIT_MEMO = None
 
 
+def _wrap_js(prop_name, prop_ref):
+    """Determines what the js ref is, if class add to class registry."""
+    if isinstance(prop_ref, pm.JSFunctionProxy):
+        # class
+        if js.utils.isclass(prop_ref):
+            new_bfclass = class_manager.reg.find(prop_ref)
+            if new_bfclass is None:
+                new_bfclass = class_manager.wrap_class(prop_ref, name=prop_name)
+                new_bfclass = class_manager.reg.add(new_bfclass)
+            return new_bfclass
+
+        # function
+        else:
+            def fn_wrapper(*args, **kwargs):
+                ret_val = aio.blockify(prop_ref)(*args, **kwargs)
+                return _wrap_js('dynamically_accessed_property', ret_val)
+            return fn_wrapper
+
+    # js object
+    elif isinstance(prop_ref, pm.JSObjectProxy):
+        return class_manager.wrap_obj(prop_ref)
+
+    elif isinstance(prop_ref, pm.null.__class__):
+        return None
+
+    # py dict
+    else:
+        return prop_ref
+
+    return None
+
+
+class _DynamicModule(Module):
+    """Dynamic get attribute for 'hidden' JS properties on a module."""
+    def __init__(self, name, js_module):
+        super().__init__(name)
+        self._js = js_module
+
+    def __getattr__(self, name):
+        if self._js[name] is not None:
+            return _wrap_js(name, self._js[name])
+        return None
+
+
 def init_dcp_module(py_parent, js_module, js_name):
-    """builds the dcp module and class registry"""
+    """Builds the dcp module and sub modules"""
     underscore_name = f"{js_name.replace('-', '_')}"
     module_name = f"{py_parent.__name__}.{underscore_name}"
-    module = Module(module_name)
+    module = _DynamicModule(module_name, js_module)
     module.__file__ = f"<dynamically created bifrost2 module: {module_name}>"
     module._js = js_module
     sys.modules[module_name] = module
@@ -32,27 +76,8 @@ def init_dcp_module(py_parent, js_module, js_name):
     # add the new module as a submodule of the root module
     setattr(py_parent, underscore_name, module)
 
-    # wrap js elements of the cjs module
     for prop_name, prop_ref in js_module.items():
-        if isinstance(prop_ref, pm.JSFunctionProxy):
-            if js.utils.isclass(prop_ref):
-                new_bfclass = class_manager.reg.find(prop_ref)
-                if new_bfclass is None:
-                    new_bfclass = class_manager.wrap_class(prop_ref, name=prop_name)
-                    new_bfclass = class_manager.reg.add(new_bfclass)
-
-                setattr(module, prop_name, new_bfclass)
-
-            else:
-                setattr(module, prop_name, aio.blockify(prop_ref))
-
-        # js object
-        elif prop_ref is js.utils.PMDict:
-            setattr(module, prop_name, class_manager.wrap_obj(prop_ref))
-
-        # py dict
-        else:
-            setattr(module, prop_name, prop_ref)
+        setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
 
 
 def make_init_fn(dcp_module) -> Callable:

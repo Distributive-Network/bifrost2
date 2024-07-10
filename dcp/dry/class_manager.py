@@ -47,6 +47,10 @@ def wrap_class(js_class, name=None):
 
     def __getattr__(self, name):
         js_attr = self.js_ref[name]
+
+        if isinstance(js_attr, pm.null.__class__):
+            return None
+
         if not callable(js_attr):
             return wrap_obj(js_attr)
 

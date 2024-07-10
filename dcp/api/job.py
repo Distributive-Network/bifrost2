@@ -7,7 +7,6 @@ class Job():
     #    #print("overidden by Job hook")
 
     def wait(self, *args, **kwargs):
-        print("NYI") # TODO
         pass
 
     def on(self, *args):
