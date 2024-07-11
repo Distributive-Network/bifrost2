@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "dcp"
+version = "0.1.0"
+description = "A DCP SDK"
+authors = [
+    "Distributive <info@distributive.network>",
+    "Will Pringle <will@distributive.network>",
+]
+license = "MIT"
+repository = "https://github.com/Distributive-Network/bifrost2"
+
+packages = [
+    { include = "dcp" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pythonmonkey = ">=0.6.0"
+pminit = ">=0.6.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.3.1"
+
+[build-system]
+requires = ["poetry>=1.1.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pminit]
+npm_install = true
+

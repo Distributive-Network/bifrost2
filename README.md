@@ -1,3 +1,16 @@
-# A playground for experiments
+# Bifrost2 - The Python SDK for [DCP](https://www.dcp.dev/)
 
-For now, please keep work to your own subdirectory. We may, or may not, organize it later.
+## Build
+
+Install [Poetry](https://python-poetry.org/), then in the root of the project directory run the following:
+- `$ poetry install`
+- `$ poetry shell`
+
+Verify your installation is correct by running the test suite:
+- `$ poetry run pytest`
+
+## Tests
+
+Run tests with:
+- `$ poetry run pytest`
+
