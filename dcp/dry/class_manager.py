@@ -25,7 +25,10 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
                 self.parent = parent
 
             def __getattr__(self, name):
-                return asyncify(self.parent.js_ref[name])
+                async def wrapper(*args, **kwargs):
+                    ret_val = await asyncify(self.parent.js_ref[name])(*args, **kwargs)
+                    return wrap_obj(ret_val)
+                return wrapper
 
         object.__setattr__(self, 'aio', AsyncAttrs(self))
 
