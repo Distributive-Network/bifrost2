@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  hello-world-job:
+  run-tests-job:
     runs-on: ubuntu-latest
 
     strategy:
