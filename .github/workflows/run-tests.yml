@@ -1,0 +1,56 @@
+name: Run Tests Workflow
+
+on: 
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  run-tests-job:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"] # add 3.8 to 3.12 later
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v3
+      with:
+        node-version: "20"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: 1.5.1
+
+    - name: Poetry Install
+      run: |
+        echo "Install [begin]"
+        poetry self add "poetry-dynamic-versioning[plugin]"
+        poetry env use python3
+        poetry install
+        echo "Install [complete]"
+
+    - name: NPM ls
+      run: cd dcp/js && npm ls && cd -
+
+    - name: Set Up DCP env
+      run: |
+        npm i -g dcp-util
+        mkdir -p "$HOME/.dcp/"
+        mkad new default --passphrase
+        mkad new id --passphrase
+
+    - name: Run Tests
+      run: poetry run python -m pytest tests/
+

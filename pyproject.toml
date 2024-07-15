@@ -16,7 +16,10 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 pythonmonkey = ">=0.6.0"
-pminit = ">=0.6.0"
+
+[tool.poetry.build]
+script = "post-install-hook.py"
+generate-setup-file = false
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.3.1"
