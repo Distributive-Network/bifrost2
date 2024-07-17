@@ -4,6 +4,7 @@ Job Filesystem.
 A vfsystem to be used for dcp jobs via tar vfs.
 
 Note: Currently only supported in the Pyodide worktime.
+Note: This logic will be mostly replaced by dcp-client's JobFS when it lands.
 
 Author: Will Pringle <will@distributive.network>
 Date: July 2024
@@ -11,6 +12,7 @@ Date: July 2024
 import pathlib
 import tarfile
 import os
+import io
 
 import readline
 import atexit
@@ -18,16 +20,48 @@ import rlcompleter
 
 class JobFS:
     """Job Virtual Filesystem (JobFS)."""
+    def __init__(self, debug_mode=False):
+        self.vfs = {}
+        self.vfs['/'] = self.vfs
+        self.home = '/home/pyodide'
+        self.mkdir(self.home)
+        self.cwd = self.home
+
+        if not debug_mode:
+            self._repl = None
+            self.cd = None
+            self.ls = None
+            self.mkdir = None
+            self.tree = None
+
     def add(self, local_src, vfs_dest=None):
         """Adds local file[s] to the vfs.
         If dest not specified, add file from root.
+        Overwrites file if there is already one specified there.
         local_src can be of type:
-            - string        : filename
-            - pathlib.Path  : filename
+            - string        : file path 
+            - pathlib.Path  : file path
+            - bytes         : data blob
+            - bytearray     : data blob
+            - file-like     : data blob
+        vfs_dest can be of type:
+            - string        : file path (optional)
+            - pathlib.Path  : file path (optional)
+        vfs_dest is not optional when passing data blobs.
         """
         if vfs_dest is None:
             vfs_dest = os.path.join(self.home, os.path.basename(local_src))
         vfs_dest = self._resolve_path(vfs_dest)
+
+        # build up path along the way if not present
+        dest_parts = list(pathlib.Path(vfs_dest).parts)
+        built_parts = '/'
+        new_filename = dest_parts.pop()
+        for part in dest_parts:
+            built_parts = os.path.join(built_parts, part)
+            self.mkdir(built_parts)
+
+        parent_dirnode = self._path_to_dir_node(built_parts)
 
         if os.path.isdir(local_src):
             self.mkdir(vfs_dest)
@@ -38,19 +72,15 @@ class JobFS:
             with open(local_src, 'rb') as f:
                 content = f.read()
 
-            self.vfs[vfs_dest] = content
+            parent_dirnode[new_filename] = content
 
     def chdir(self, vfs_dest):
         """Change directory."""
         vfs_dest = self._resolve_path(vfs_dest)
+        if self._path_to_dir_node(vfs_dest) is None:
+            raise self.InvalidPath(vfs_dest)
         self.cwd = vfs_dest
 
-    def __init__(self):
-        self.vfs = {}
-        self.vfs['/'] = self.vfs
-        self.home = '/home/pyodide'
-        self.mkdir(self.home)
-        self.cwd = self.home
 
     def _resolve_path(self, path):
         if path.startswith('~'):
@@ -59,37 +89,101 @@ class JobFS:
             path = os.path.join(self.cwd, path)
         return os.path.normpath(path)
 
-    def serialize(self):
+    def _path_to_dir_node(self, path):
+        dirnode = self.vfs
+        parts = pathlib.Path(path).parts
+        for part in parts:
+            if part not in dirnode:
+                return None
+            dirnode = dirnode[part]
+        return dirnode
+
+    def _flatten_vfs(self, dirnode=None, path_so_far='/'):
+        if dirnode is None:
+            dirnode = self.vfs
+        files = []
+        for key in list(dirnode.keys()):
+            if key == '/':
+                continue
+            if isinstance(dirnode[key], dict):
+                files.append((os.path.join(path_so_far, key), None))
+                files = files + self._flatten_vfs(dirnode[key], os.path.join(path_so_far, key))
+            else:
+                files.append((os.path.join(path_so_far, key), dirnode[key]))
+        return files
+
+    def serialize(self) -> io.BytesIO:
+        """Serializes the vfs into a zip-compressed tarball."""
         tar_stream = io.BytesIO()
-        with tarfile.open(fileobj=tar_stream, mode='w') as tar:
-            for path, content in self.vfs.items():
-                file_info = tarfile.TarInfo(name=path.lstrip('/'))
-                file_info.size = len(content)
-                tar.addfile(file_info, io.BytesIO(content))
+        with tarfile.open(fileobj=tar_stream, mode='w:gz') as tar:
+            for (file_path, file_content) in self._flatten_vfs():
+                tar_info = tarfile.TarInfo(name=file_path)
+                if file_content is None:
+                    tar_info.type = tarfile.DIRTYPE
+                    tar.addfile(tarinfo=tar_info)
+                else:
+                    file_data = file_content
+                    if isinstance(file_content, str):
+                        file_data = file_content.encode('utf-8')
+                    tar_info.size = len(file_data)
+                    tar.addfile(tarinfo=tar_info, fileobj=io.BytesIO(file_data))
         tar_stream.seek(0)
         return tar_stream
 
+    def write_to_file(self, file_path):
+        tar_stream = self.serialize()
+        with open(file_path, 'wb') as f:
+            f.write(tar_stream.read())
+
     def mkdir(self, new_dir):
+        """For debugging."""
         new_dir = self._resolve_path(new_dir)
         parts = pathlib.Path(new_dir).parts
-        prev_inode = self.vfs
+        prev_dirnode = self.vfs
         for part in parts:
-            if part not in prev_inode:
-                prev_inode[part] = {}
-            prev_inode = prev_inode[part]
+            if part not in prev_dirnode:
+                prev_dirnode[part] = {}
+            prev_dirnode = prev_dirnode[part]
 
     def cd(self, *args):
+        """For debugging."""
         return self.chdir(*args)
 
-    def tree(self):
-        return str(self.vfs)
+    def tree(self, dirnode=None, level=0):
+        """For debugging."""
+        val = ''
+        if dirnode is None:
+            dirnode = self.vfs
+        for key in list(dirnode.keys()):
+            if key == '/':
+                continue
+            val = f"{val}{'  - ' * level}{key}"
+            if isinstance(dirnode[key], dict):
+                val = f"{val}/\n"
+                val = val + self.tree(dirnode[key], level + 1)
+            else:
+                val = f"{val}\n"
+        return val
 
-    def ls(self):
-        parts = pathlib.Path(self.cwd).parts
+    def ls(self, dir_to_list=None):
+        """For debugging."""
+        if dir_to_list is None:
+            dir_to_list = self.cwd
+        else:
+            dir_to_list = self._resolve_path(dir_to_list)
+        parts = pathlib.Path(dir_to_list).parts
         dir_node = self.vfs
         for part in parts:
             dir_node = dir_node[part]
         return list(dir_node.keys())
+
+    def cat(self, file_path):
+        """For debugging."""
+        file_path = self._resolve_path(file_path)
+        for (path, content) in self._flatten_vfs():
+            if path == file_path:
+                return content.decode('ascii')
+        return None
 
     def _repl(self):
         """Repl for debugging a JobFS vfs."""
@@ -128,7 +222,10 @@ class JobFS:
             
             except Exception as e:
                 print(f"Error: {e}")
- 
-print("-------\n")
-jfs = JobFS()
-jfs._repl()
+
+    # static property
+    class InvalidPath(Exception):
+        def __init__(self, path):
+            self.message = f"{path} is invalid"
+            super().__init__(self.message)
+
