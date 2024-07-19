@@ -49,8 +49,17 @@ class JobFS:
             - pathlib.Path  : file path (optional)
         vfs_dest is not optional when passing data blobs.
         """
-        if vfs_dest is None:
-            vfs_dest = os.path.join(self.home, os.path.basename(local_src))
+        if isinstance(local_src, io.IOBase):
+            local_src = local_src.read()
+
+        if isinstance(local_src, bytes) or isinstance(local_src, bytearray):
+            if vfs_dest is None:
+                raise Exception('Must specify a destination file path to write to')
+        elif isinstance(local_src, str) or isinstance(local_src, pathlib.PurePath):
+            if vfs_dest is None:
+                vfs_dest = os.path.join(self.home, os.path.basename(local_src))
+            local_src = str(local_src)
+
         vfs_dest = self._resolve_path(vfs_dest)
 
         # build up path along the way if not present
@@ -63,7 +72,9 @@ class JobFS:
 
         parent_dirnode = self._path_to_dir_node(built_parts)
 
-        if os.path.isdir(local_src):
+        if isinstance(local_src, bytes) or isinstance(local_src, bytearray):
+            parent_dirnode[new_filename] = local_src
+        elif os.path.isdir(local_src):
             self.mkdir(vfs_dest)
             dir_list = os.listdir(local_src)
             for sub_path in dir_list:
@@ -71,7 +82,6 @@ class JobFS:
         else:
             with open(local_src, 'rb') as f:
                 content = f.read()
-
             parent_dirnode[new_filename] = content
 
     def chdir(self, vfs_dest):
@@ -182,7 +192,7 @@ class JobFS:
         file_path = self._resolve_path(file_path)
         for (path, content) in self._flatten_vfs():
             if path == file_path:
-                return content.decode('ascii')
+                return content.decode('utf-8')
         return None
 
     def _repl(self):
