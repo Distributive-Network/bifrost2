@@ -122,7 +122,7 @@ class JobFS:
                 files.append((os.path.join(path_so_far, key), dirnode[key]))
         return files
 
-    def serialize(self) -> io.BytesIO:
+    def to_gzip_tar(self) -> bytes:
         """Serializes the vfs into a zip-compressed tarball."""
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode='w:gz') as tar:
@@ -138,12 +138,12 @@ class JobFS:
                     tar_info.size = len(file_data)
                     tar.addfile(tarinfo=tar_info, fileobj=io.BytesIO(file_data))
         tar_stream.seek(0)
-        return tar_stream
+        return tar_stream.read()
 
     def write_to_file(self, file_path):
-        tar_stream = self.serialize()
+        tar_bytes = self.to_gzip_tar()
         with open(file_path, 'wb') as f:
-            f.write(tar_stream.read())
+            f.write(tar_bytes)
 
     def mkdir(self, new_dir):
         """For debugging."""
