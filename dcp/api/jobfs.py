@@ -20,19 +20,12 @@ import rlcompleter
 
 class JobFS:
     """Job Virtual Filesystem (JobFS)."""
-    def __init__(self, debug_mode=False):
+    def __init__(self):
         self.vfs = {}
         self.vfs['/'] = self.vfs
         self.home = '/home/pyodide'
         self.mkdir(self.home)
         self.cwd = self.home
-
-        if not debug_mode:
-            self._repl = None
-            self.cd = None
-            self.ls = None
-            self.mkdir = None
-            self.tree = None
 
     def add(self, local_src, vfs_dest=None):
         """Adds local file[s] to the vfs.
