@@ -12,6 +12,10 @@ class TestComputeFor(unittest.TestCase):
         # check compute_for returns the same type as compute.do
         self.assertTrue(isinstance(job1, job2.__class__))
 
+    def test_smoke_bf2_attrs(self):
+        job = dcp.compute_for('x=>{progress(); return x * 2}', [1,2,3])
+        self.assertTrue(hasattr(job, 'wait'))
+
 if __name__ == '__main__':
     unittest.main()
 
