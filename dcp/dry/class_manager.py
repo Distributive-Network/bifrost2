@@ -111,9 +111,16 @@ def wrap_obj(js_val):
 def ugly_duck_type_check(js_val):
     """Check via duck typing what the js_val is."""
 
+    # Result Handle is very hard to check directly, so we duck type
     # check if it's a result handle
     result_handle_props = ['toJSON', 'newResult', 'getLength', 'slice', 'fetch']
     if js.utils.class_name(js.utils.obj_ctor(js_val)) == 'Function':
         if next((x for x in result_handle_props if js_val[x] is None), None) is None:
             return reg.find('ResultHandle')
+
+    # TODO: job.constructor.name is empty string in PythonMonkey but not NodeJS
+    # TODO: Open question: can we even trust x.constructor.name???
+    # TODO: Are there better attrs to duck test for Job???
+    if hasattr(js_val, 'debugLabel') and js_val.debugLabel == 'Job':
+        return reg.find('Job')
 
