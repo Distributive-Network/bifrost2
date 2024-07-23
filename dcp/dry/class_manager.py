@@ -33,7 +33,7 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
         object.__setattr__(self, 'aio', AsyncAttrs(self))
 
     def __getattr__(self, name):
-        js_attr = self.js_ref[name]
+        js_attr = object.__getattribute__(self, 'js_ref')[name]
 
         if isinstance(js_attr, pm.null.__class__):
             return None
@@ -52,6 +52,14 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
         else:
             self.js_ref[name] = value
 
+    def _wrapper_set_attribute(self, name, value):
+        """Allows for attributes to be set on the proxy itself, not the js_ref."""
+        object.__setattr__(self, name, value)
+
+    def _wrapper_get_attribute(self, name):
+        """Allows for attributes to be get on the proxy itself, not the js_ref."""
+        object.__getattribute__(self, name)
+
     def __str__(self):
         # Workaround required since PythonMonkey will encounter errors while str values
         try:
@@ -63,6 +71,8 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
         '__init__': __init__,
         '__getattr__': __getattr__,
         '__setattr__': __setattr__,
+        '_wrapper_set_attribute': _wrapper_set_attribute, #TODO this is doing too much, should just be a proxy, not also have its own api...
+        '_wrapper_get_attribute': _wrapper_get_attribute, #TODO same as above
         '__str__': __str__,
         'get_js_class': staticmethod(lambda: js_class),
     }

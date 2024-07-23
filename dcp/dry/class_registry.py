@@ -24,8 +24,8 @@ class ClassRegistry:
     # classes to the registry... instead it also does the inheritance stuff. ):
     def add(self, bfclass):
         """Registers a new BF2 Wrapper class, replaces with api subclasses."""
-        if sub_class := api.sub_classes.get(bfclass.__name__):
-            bfclass = type(bfclass.__name__, (bfclass,), dict(sub_class.__dict__))
+        if sub_class_maker := api.sub_classes.get(bfclass.__name__):
+            bfclass = sub_class_maker(bfclass)
         self._list.append(bfclass)
         return bfclass
 
