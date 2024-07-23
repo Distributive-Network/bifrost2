@@ -16,6 +16,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 pythonmonkey = ">=0.6.0"
+numpy = "^1.24"
 
 [tool.poetry.build]
 script = "post-install-hook.py"
