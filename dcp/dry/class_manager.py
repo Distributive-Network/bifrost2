@@ -58,7 +58,7 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
 
     def _wrapper_get_attribute(self, name):
         """Allows for attributes to be get on the proxy itself, not the js_ref."""
-        object.__getattribute__(self, name)
+        return object.__getattribute__(self, name)
 
     def __str__(self):
         # Workaround required since PythonMonkey will encounter errors while str values
