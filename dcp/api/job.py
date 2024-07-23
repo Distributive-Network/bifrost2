@@ -9,9 +9,8 @@ import urllib.parse
 def job_maker(super_class):
     class Job(super_class):
         def __init__(self, *args, **kwargs):
-            print("here")
-            self.work_function = args[0]
             super.__init__(*args, **kwargs)
+            self.work_function = args[0]
 
         def exec(self, *args, **kwargs):
             def validateSerializers():
