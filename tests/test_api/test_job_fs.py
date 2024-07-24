@@ -57,13 +57,13 @@ def resolve_path(path, cwd):
     return os.path.normpath(path)
 
 
-def adder(files_to_add, jobfs):
+def adder(files_to_add, job_fs):
     files_expect_output = []
 
     for file in files_to_add:
         text = uuid.uuid4().hex.upper()
-        jobfs.chdir(file['cwd'])
-        jobfs.add(bytes(text, 'utf-8'), file['path'])
+        job_fs.chdir(file['cwd'])
+        job_fs.add(bytes(text, 'utf-8'), file['path'])
         abs_path = resolve_path(file['path'], file['cwd'])
         files_expect_output.append({ 'content': text, 'abs_path': abs_path })
 
@@ -72,7 +72,7 @@ def adder(files_to_add, jobfs):
 
 class TestJobFS(unittest.TestCase):
 
-    def test_smoke_jobfs(self):
+    def test_smoke_job_fs(self):
         """Simple smoke test."""
         self.assertTrue(dcp.JobFS is not None)
         new_fs = dcp.JobFS()
@@ -132,7 +132,7 @@ class TestJobFS(unittest.TestCase):
 
 
     def test_add_file_absolute(self):
-        """Testing adding a file using an absolute path for the jobfs vfs destination."""
+        """Testing adding a file using an absolute path for the job_fs vfs destination."""
         new_fs = dcp.JobFS()
         vfs_dest = '/i/put/the/lorem/ipsum/file/here.txt'
         lorem_ipsum = 'Lorem ipsum dolor sit amet,\nconsectetur epicness.'
