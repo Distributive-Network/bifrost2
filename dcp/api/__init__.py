@@ -1,7 +1,7 @@
 from .compute_for import compute_for_maker
 from .job import job_maker
 from .result_handle import result_handle_maker 
-from .jobfs import JobFS
+from .job_fs import JobFS
 
 sub_classes = {
     'Job': job_maker,
