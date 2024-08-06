@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dcp"
-version = "0.1.0"
+version = "2.0.1"
 description = "A DCP SDK"
 authors = [
     "Distributive <info@distributive.network>",
@@ -8,17 +8,27 @@ authors = [
 ]
 license = "MIT"
 repository = "https://github.com/Distributive-Network/bifrost2"
-
 packages = [
     { include = "dcp" }
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: System :: Distributed Computing"
 ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-pythonmonkey = ">=0.6.0"
 cloudpickle = "2.2.1"
 dill = "0.3.8"
 numpy = "~1.24"
+pythonmonkey = ">=0.7.1"
 
 [tool.poetry.build]
 script = "post-install-hook.py"
@@ -30,7 +40,4 @@ pytest = "^7.3.1"
 [build-system]
 requires = ["poetry>=1.1.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.pminit]
-npm_install = true
 
