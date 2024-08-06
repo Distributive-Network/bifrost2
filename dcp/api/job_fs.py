@@ -29,7 +29,7 @@ class JobFS:
 
     def add(self, local_src, vfs_dest=None):
         """Adds local file[s] to the vfs.
-        If dest not specified, add file from root.
+        If dest not specified, add file from current working directory.
         Overwrites file if there is already one specified there.
         local_src can be of type:
             - string        : file path 
@@ -50,7 +50,7 @@ class JobFS:
                 raise Exception('Must specify a destination file path to write to')
         elif isinstance(local_src, str) or isinstance(local_src, pathlib.PurePath):
             if vfs_dest is None:
-                vfs_dest = os.path.join(self.home, os.path.basename(local_src))
+                vfs_dest = os.path.basename(local_src)
             local_src = str(local_src)
 
         vfs_dest = self._resolve_path(vfs_dest)
