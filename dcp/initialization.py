@@ -87,6 +87,7 @@ def make_init_fn(dcp_module) -> Callable:
 
         # add some api top level imports
         setattr(dcp_module, "compute_for", api.compute_for_maker(), )
+        setattr(dcp_module, "JobFS", api.JobFS, )
 
 
         INIT_MEMO = dcp_module
