@@ -14,3 +14,9 @@ Verify your installation is correct by running the test suite:
 Run tests with:
 - `$ poetry run pytest`
 
+## Publishing
+
+We need to upload the tar since we need to run NPM i after installation - this is not possible with the wheel distribution option.
+- `$ poetry build -f sdist`
+- `$ twine upload dist/dcp-<new-version-here>.tar.gz`
+
