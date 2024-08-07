@@ -1,17 +1,28 @@
 """
 The BiFrost2 work function. Handles deserializing/serializing job data and running
-the real (user provided) work function.
+the real (user provided) work function. Code from job_serializers.py is also
+copied in.
 
 Author: Severn Lortie <severn@distributive.network>
 Date: Aug 2024
 """
+import dill
+from .job_serializers import serialize, deserialize
 
-work_function_string = """
-import numpy
+def get_work_function_string():
+    imports_string = """
+# These are default serializers so they are imported in every job
 import cloudpickle
+import numpy
+
 import sys
 from collections.abc import Iterator
+    """
 
+    serialize_string   = dill.source.getsource(serialize, lstrip=True)
+    deserialize_string = dill.source.getsource(deserialize, lstrip=True)
+
+    work_function_string = """
 def eval_function(function_string):
     def user_code_namespace():
         locals = {}
@@ -29,12 +40,15 @@ def eval_function(function_string):
 if "meta_arguments" not in globals():
     meta_arguments = []
 
-if "argv_deserialized" not in globals():
-    argv_deserialized = False
+if "first_run" not in globals():
+    first_run = True
+
+if "counter" not in globals():
+    counter = 0
 
 def bifrost2_setup():
     global meta_arguments
-    global argv_deserialized
+    global first_run
 
     if not len(meta_arguments):
         meta_arguments = sys.argv.pop()
@@ -52,68 +66,29 @@ def bifrost2_setup():
         serializer["serializer"]   = eval_function(serializer["serializer"])
         serializer["deserializer"] = eval_function(serializer["deserializer"])
 
-    def serialize(value):
-        class IteratorWrapper:
-            def __init__(self, iterator):
-                self.iterator = iterator
-
-            def __iter__(self):
-                return self
-
-            def __next__(self):
-                value = next(self.iterator)
-                return serialize(value)
-
-        primitive_types = (int, float, bool, str, bytes)
-        if isinstance(value, primitive_types):
-            return value
-        if isinstance(value, Iterator):
-            return IteratorWrapper(value)
-
-        for serializer in serializers:
-            if serializer["interrogator"](value):
-                serialized_value_bytes = serializer["serializer"](value)
-                serialized_serializer_name_bytes = serializer["name"].encode('utf-8')
-                serializer_name_length = len(serializer["name"])
-                serializer_name_length_byte = bytearray(serializer_name_length.to_bytes(1, byteorder='big'))
-                serialized_serializer_name_byte_array = bytearray(serialized_serializer_name_bytes)
-                serialized_value_byte_array = bytearray(serialized_value_bytes)
-                return serializer_name_length_byte + serialized_serializer_name_byte_array + serialized_value_byte_array
-
-    def deserialize(value):
-        if isinstance(value, memoryview):
-            value = bytearray(value.tobytes())
-        elif not isinstance(value, bytearray):
-            return value
-        serializer_name_length = value[0]
-        if serializer_name_length > len(value):
-            return value
-        name_start_idx = 1
-        name_end_idx = serializer_name_length + 1
-        serializer_name_bytes = value[name_start_idx:name_end_idx]
-        del value[0:name_end_idx]
-        serializer_name = serializer_name_bytes.decode('utf-8')
-        allowed_serializer_names = [serializer["name"] for serializer in serializers]
-        if serializer_name not in allowed_serializer_names:
-            return value
-
-        serializer = next((serializer for serializer in serializers if serializer["name"] == serializer_name), None)
-        return serializer["deserializer"](value)
-
-    if not argv_deserialized:
+    if first_run:
         for i in range(len(sys.argv)):
-            arg = deserialize(sys.argv[i])
+            arg = deserialize(sys.argv[i], serializers)
             sys.argv[i] = arg
-
-    original_set_slice_handler = dcp.set_slice_handler
-    def set_slice_handler(slice_handler):
-        def slice_handler_deserialization_wrapper(serialized_datum):
-            datum = deserialize(serialized_datum)
-            result = slice_handler(datum)
-            serialized_result = serialize(result)
-            return serialized_result
-        original_set_slice_handler(slice_handler_deserialization_wrapper)
-    dcp.set_slice_handler = set_slice_handler
+        original_set_slice_handler = dcp.set_slice_handler
+        def set_slice_handler(slice_handler):
+            def slice_handler_deserialization_wrapper(serialized_datum):
+                datum = deserialize(serialized_datum, serializers)
+                result = slice_handler(datum)
+                serialized_result = serialize(result, serializers)
+                return serialized_result
+            original_set_slice_handler(slice_handler_deserialization_wrapper)
+        dcp.set_slice_handler = set_slice_handler
     user_work_function()
+    first_run = False
 bifrost2_setup()
-"""
+    """
+
+    return f"""
+{imports_string}
+{serialize_string}
+{deserialize_string}
+{work_function_string}
+    """
+
+
