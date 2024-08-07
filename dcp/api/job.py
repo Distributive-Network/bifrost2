@@ -29,7 +29,7 @@ def job_maker(super_class):
             self._wrapper_set_attribute("env", {})
             self._wrapper_set_attribute("modules", [])
             self._wrapper_set_attribute("fs", JobFS())
-            self._wrapper_set_attribute("exec_called", False)
+            self._wrapper_set_attribute("_exec_called", False)
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
@@ -83,7 +83,7 @@ def job_maker(super_class):
         #TODO Make sure this runs on our event loop
         def _exec(self, *args):
             self._before_exec()
-            self._wrapper_set_attribute("exec_called", True)
+            self._wrapper_set_attribute("_exec_called", True)
             accepted_future = asyncio.Future()
             def handle_accepted():
                 accepted_future.set_result(self.js_ref.id)
@@ -93,7 +93,7 @@ def job_maker(super_class):
 
         #TODO Make sure this runs on our event loop
         def _wait(self):
-            if not self.exec_called:
+            if not self._exec_called:
                 raise Exception("Wait called before exec()")
             complete_future = asyncio.Future()
             def handle_complete(resultHandle):
