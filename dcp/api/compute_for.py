@@ -1,7 +1,7 @@
 """
 compute_for API
 
-Author: Will Pringle <will@distributive.network>
+Author: Will Pringle <will@distributive.network>, Severn Lortie <severn@distributive.network>
 Date: July 2024
 """
 
