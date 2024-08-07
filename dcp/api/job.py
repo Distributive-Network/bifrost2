@@ -7,6 +7,7 @@ from .. import dry
 from .job_serializers import Serializers
 from .job_env import Env
 from .job_modules import Modules
+from .job_fs import JobFS
 from collections.abc import Iterator
 from types import FunctionType
 import urllib.parse
@@ -25,12 +26,13 @@ def job_maker(super_class):
             work_function_candidates = [arg for arg in args if isinstance(arg, FunctionType)]
             if len(work_function_candidates):
                  work_function = work_function_candidates[0]
+
             self._wrapper_set_attribute("_work_function", work_function)
             self._wrapper_set_attribute("_serializers_instance", Serializers())
             self._wrapper_set_attribute("_env_instance", Env())
             self._wrapper_set_attribute("_modules_instance", Modules())
+            self._wrapper_set_attribute("fs", JobFS())
             self._wrapper_set_attribute("exec_called", False)
-
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
@@ -78,29 +80,26 @@ def job_maker(super_class):
                 serialized_input_data = self.js_ref.jobInputData
                 serialized_arguments = self.js_ref.jobArguments
 
+            job_fs = bytearray(self.fs.to_gzip_tar())
             env_args = self._env_instance.convert_to_arguments()
             modules = self._modules_instance.convert_to_requires()
             if len(modules) > 0:
                 self.js_ref.requires(modules)
 
-            with open("/home/severn/git/bifrost2/test_image.tar.gz", 'rb') as file:
-                file_data = bytearray(file.read())
-
             offset_to_argument_vector = 3 + len(env_args)
             self.js_ref.jobInputData = serialized_input_data
-            #TODO serialize JobFS and emplace in argument array. For now this is just a placeholder
-            self.js_ref.jobArguments = [offset_to_argument_vector] + ["gzImage", file_data] + env_args + serialized_arguments + [meta_arguments]
+            self.js_ref.jobArguments = [offset_to_argument_vector] + ["gzImage", job_fs] + env_args + serialized_arguments + [meta_arguments]
             self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(work_function_string, safe="=:,#+")
 
         #TODO Make sure this runs on our event loop
-        def _exec(self):
+        def _exec(self, *args):
             self._before_exec()
             self._wrapper_set_attribute("exec_called", True)
             accepted_future = asyncio.Future()
             def handle_accepted():
                 accepted_future.set_result(self.js_ref.id)
             self.js_ref.on('accepted', handle_accepted)
-            self.js_ref.exec()
+            self.js_ref.exec(*args)
             return accepted_future
 
         #TODO Make sure this runs on our event loop
@@ -118,8 +117,8 @@ def job_maker(super_class):
             self.js_ref.on("complete", handle_complete)
             return complete_future
 
-        def exec(self):
-            results = dry.aio.blockify(self._exec)()
+        def exec(self, *args):
+            results = dry.aio.blockify(self._exec)(*args)
             return results
 
         def wait(self):

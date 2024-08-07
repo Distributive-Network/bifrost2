@@ -10,23 +10,34 @@ work_function_string = """
 import numpy
 import cloudpickle
 import sys
-import js
 from collections.abc import Iterator
-
-def console_log(data):
-    js.globalThis.postMessage(data)
 
 def eval_function(function_string):
     def user_code_namespace():
         locals = {}
-        exec(function_string, {"dcp": dcp}, locals)
+        clean_globals = {}
+        allowed_global_keys = ["__name__", "__doc__", "__package__", "__loader__", "__spec__", "__annotations__", "__builtins__", "dcp"]
+        for key in globals().keys():
+            if key in allowed_global_keys:
+                clean_globals[key] = globals()[key]
+        exec(function_string, clean_globals, locals)
         return locals
     locals = user_code_namespace()
     function_name = next(iter(locals))
     return locals[function_name]
 
+if "meta_arguments" not in globals():
+    meta_arguments = []
+
+if "argv_deserialized" not in globals():
+    argv_deserialized = False
+
 def bifrost2_setup():
-    meta_arguments = sys.argv.pop()
+    global meta_arguments
+    global argv_deserialized
+
+    if not len(meta_arguments):
+        meta_arguments = sys.argv.pop()
     work_function_string = meta_arguments[0]
 
     user_work_function = eval_function(work_function_string)
@@ -36,7 +47,6 @@ def bifrost2_setup():
 
     serialized_serializers = meta_arguments[1]
     serializers = cloudpickle.loads(serialized_serializers)
-
     for serializer in serializers:
         serializer["interrogator"] = eval_function(serializer["interrogator"])
         serializer["serializer"]   = eval_function(serializer["serializer"])
@@ -90,11 +100,10 @@ def bifrost2_setup():
         serializer = next((serializer for serializer in serializers if serializer["name"] == serializer_name), None)
         return serializer["deserializer"](value)
 
-    for i in range(len(sys.argv)):
-        arg = deserialize(sys.argv[i])
-        if arg is None:
-            continue
-        sys.argv[i] = arg
+    if not argv_deserialized:
+        for i in range(len(sys.argv)):
+            arg = deserialize(sys.argv[i])
+            sys.argv[i] = arg
 
     original_set_slice_handler = dcp.set_slice_handler
     def set_slice_handler(slice_handler):
