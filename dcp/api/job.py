@@ -4,97 +4,86 @@ import dill
 import asyncio
 from ..js import utils
 from .. import dry
-from .job_serializers import Serializers
-from .job_env import Env
-from .job_modules import Modules
+from .job_serializers import (
+    default_serializers,
+    serialize,
+    deserialize,
+    convert_serializers_to_arguments,
+    validate_serializers
+)
+from .job_env import convert_env_to_arguments
+from .job_modules import convert_modules_to_requires
 from .job_fs import JobFS
 from collections.abc import Iterator
 from types import FunctionType
-import urllib.parse
-from .pyodide_work_function import work_function_string
-
+import urllib
+from .pyodide_work_function import get_work_function_string
 
 def job_maker(super_class):
     class Job(super_class):
-        def __init__(self, *args, **kwargs):
-            compute_for_js = pm.eval("globalThis.dcp.compute.for")
-            job_js = dry.aio.blockify(compute_for_js)(*args, **kwargs)
-            job_js.worktime = "pyodide"
+        def __init__(self, job_js):
             super().__init__(job_js)
+            self.js_ref.worktime = 'pyodide'
 
-            work_function = None
-            work_function_candidates = [arg for arg in args if isinstance(arg, FunctionType)]
-            if len(work_function_candidates):
-                 work_function = work_function_candidates[0]
-
-            self._wrapper_set_attribute("_work_function", work_function)
-            self._wrapper_set_attribute("_serializers_instance", Serializers())
-            self._wrapper_set_attribute("_env_instance", Env())
-            self._wrapper_set_attribute("_modules_instance", Modules())
+            self._wrapper_set_attribute("serializers", default_serializers)
+            self._wrapper_set_attribute("env", {})
+            self._wrapper_set_attribute("modules", [])
             self._wrapper_set_attribute("fs", JobFS())
-            self._wrapper_set_attribute("exec_called", False)
+            self._wrapper_set_attribute("_exec_called", False)
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
-        @property
-        def serializers(self):
-            return self._serializers_instance.serializers
-
-        @property
-        def env(self):
-            return self._env_instance.env
-
-        @property
-        def modules(self):
-            return self._modules_instance.modules
-
         def _before_exec(self, *args, **kwargs):
-            worktime = self.js_ref.worktime
-            if not worktime == "pyodide":
+            if not self.js_ref.worktime == "pyodide":
                 pass
 
-            work_function = self._work_function
-            if work_function is None:
-                work_function = self.js_ref.workFunctionURI
-            else:
-                work_function = dill.source.getsource(work_function)
+            work_function = urllib.parse.unquote(self.js_ref.workFunctionURI)
+            work_function = work_function.replace("data:,", "")
 
             meta_arguments = [
                 work_function
             ]
 
-            serializers = self._serializers_instance
-            serialized_input_data = []
             serialized_arguments = []
-            if not serializers.empty():
-                serializers.validate_serializers()
-                for input_slice in self.js_ref.jobInputData:
-                    serialized_slice = self._serializers_instance.serialize(input_slice)
-                    serialized_input_data.append(serialized_slice)
+            serialized_input_data = []
+            if len(self.serializers):
+                validate_serializers(self.serializers)
+
+                super_range_object = pm.eval("globalThis.dcp['range-object'].SuperRangeObject")
+                if isinstance(self.js_ref.jobInputData, list):
+                    for input_slice in self.js_ref.jobInputData:
+                        serialized_slice = serialize(input_slice, self.serializers)
+                        serialized_input_data.append(serialized_slice)
+                elif isinstance(self.js_ref.jobInputData, Iterator) and not utils.instanceof(self.js_ref.jobInputData, super_range_object):
+                    serialized_input_data = serialize(self.js_ref.jobInputData, self.serializers)
+                else:
+                    serialized_input_data = self.js_ref.jobInputData
+
                 for argument in self.js_ref.jobArguments:
-                    serialized_argument = self._serializers_instance.serialize(argument)
+                    serialized_argument = serialize(argument, self.serializers)
                     serialized_arguments.append(serialized_argument)
-                serializers_arg = self._serializers_instance.convert_to_arguments()
-                meta_arguments.append(serializers_arg)
+
+                serialized_serializers = convert_serializers_to_arguments(self.serializers)
+                meta_arguments.append(serialized_serializers)
             else:
-                serialized_input_data = self.js_ref.jobInputData
                 serialized_arguments = self.js_ref.jobArguments
+                serialized_input_data = self.js_ref.jobInputData
 
             job_fs = bytearray(self.fs.to_gzip_tar())
-            env_args = self._env_instance.convert_to_arguments()
-            modules = self._modules_instance.convert_to_requires()
+            env_args = convert_env_to_arguments(self.env)
+            modules = convert_modules_to_requires(self.modules)
             if len(modules) > 0:
                 self.js_ref.requires(modules)
 
             offset_to_argument_vector = 3 + len(env_args)
             self.js_ref.jobInputData = serialized_input_data
             self.js_ref.jobArguments = [offset_to_argument_vector] + ["gzImage", job_fs] + env_args + serialized_arguments + [meta_arguments]
-            self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(work_function_string, safe="=:,#+")
+            self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(get_work_function_string(), safe="=:,#+;")
 
         #TODO Make sure this runs on our event loop
         def _exec(self, *args):
             self._before_exec()
-            self._wrapper_set_attribute("exec_called", True)
+            self._wrapper_set_attribute("_exec_called", True)
             accepted_future = asyncio.Future()
             def handle_accepted():
                 accepted_future.set_result(self.js_ref.id)
@@ -104,14 +93,14 @@ def job_maker(super_class):
 
         #TODO Make sure this runs on our event loop
         def _wait(self):
-            if not self.exec_called:
+            if not self._exec_called:
                 raise Exception("Wait called before exec()")
             complete_future = asyncio.Future()
             def handle_complete(resultHandle):
                 serialized_results = resultHandle["values"]()
                 results = []
                 for serialized_result in serialized_results:
-                    result = self._serializers_instance.deserialize(serialized_result)
+                    result = deserialize(serialized_result, self.serializers)
                     results.append(result)
                 complete_future.set_result(results)
             self.js_ref.on("complete", handle_complete)
