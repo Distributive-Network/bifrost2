@@ -38,8 +38,9 @@ jobs:
         echo "Install [begin]"
         poetry self add "poetry-dynamic-versioning[plugin]"
         poetry env use python3
-        poetry install
+        poetry install --parallel
         echo "Install [complete]"
+      timeout-minutes: 1
 
     - name: NPM ls
       run: cd dcp/js && npm ls && cd -
