@@ -87,6 +87,7 @@ def make_init_fn(dcp_module) -> Callable:
 
         # add some api top level imports
         setattr(dcp_module, "compute_for", api.compute_for_maker(class_manager.reg.find('Job')), )
+        setattr(dcp_module, "compute_do", api.compute_do_maker(class_manager.reg.find('Job')), )
         setattr(dcp_module, "JobFS", api.JobFS, )
 
 
