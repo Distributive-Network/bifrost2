@@ -50,7 +50,7 @@ def job_maker(super_class):
                 validate_serializers(self.serializers)
 
                 super_range_object = pm.eval("globalThis.dcp['range-object'].SuperRangeObject")
-                if isinstance(self.js_ref.jobInputData, list):
+                if isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
                     for input_slice in self.js_ref.jobInputData:
                         serialized_slice = serialize(input_slice, self.serializers)
                         serialized_input_data.append(serialized_slice)
@@ -82,6 +82,12 @@ def job_maker(super_class):
 
         #TODO Make sure this runs on our event loop
         def _exec(self, *args):
+
+            # TODO: remove once patched in DCP (TODO: link MR)
+            # This is required since dcp-client looks for a __file__ attribute
+            if not hasattr(__import__("__main__"), '__file__'):
+                setattr(__import__("__main__"), '__file__', 'severn::repl|ipython')
+
             self._before_exec()
             self._wrapper_set_attribute("_exec_called", True)
             accepted_future = asyncio.Future()
@@ -89,6 +95,13 @@ def job_maker(super_class):
                 accepted_future.set_result(self.js_ref.id)
             self.js_ref.on('accepted', handle_accepted)
             self.js_ref.exec(*args)
+
+
+            # TODO: remove once patched in DCP
+            # refer to code and TODO comment at the top of _exec
+            if getattr(__import__("__main__"), '__file__') == 'severn::repl|ipython':
+                delattr(__import__("__main__"), '__file__')
+
             return accepted_future
 
         #TODO Make sure this runs on our event loop
