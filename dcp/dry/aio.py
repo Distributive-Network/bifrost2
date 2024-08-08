@@ -14,6 +14,10 @@ Date: June 2024
 import asyncio
 import inspect
 
+# TODO: should we always do this? Is this user's responsibility?
+import nest_asyncio
+nest_asyncio.apply()
+
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
