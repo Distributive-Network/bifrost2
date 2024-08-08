@@ -43,9 +43,6 @@ if "meta_arguments" not in globals():
 if "first_run" not in globals():
     first_run = True
 
-if "counter" not in globals():
-    counter = 0
-
 def bifrost2_setup():
     global meta_arguments
     global first_run
@@ -66,20 +63,18 @@ def bifrost2_setup():
         serializer["serializer"]   = eval_function(serializer["serializer"])
         serializer["deserializer"] = eval_function(serializer["deserializer"])
 
+    def slice_handler_deserialization_wrapper(serialized_datum):
+        datum = deserialize(serialized_datum, serializers)
+        result = user_work_function(datum)
+        serialized_result = serialize(result, serializers)
+        return serialized_result
+
     if first_run:
         for i in range(len(sys.argv)):
             arg = deserialize(sys.argv[i], serializers)
             sys.argv[i] = arg
-        original_set_slice_handler = dcp.set_slice_handler
-        def set_slice_handler(slice_handler):
-            def slice_handler_deserialization_wrapper(serialized_datum):
-                datum = deserialize(serialized_datum, serializers)
-                result = slice_handler(datum)
-                serialized_result = serialize(result, serializers)
-                return serialized_result
-            original_set_slice_handler(slice_handler_deserialization_wrapper)
-        dcp.set_slice_handler = set_slice_handler
-    user_work_function()
+
+    dcp.set_slice_handler(slice_handler_deserialization_wrapper)
     first_run = False
 bifrost2_setup()
     """
