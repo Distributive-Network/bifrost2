@@ -13,7 +13,7 @@ class TestDcpInitFunction(unittest.TestCase):
 
         self.assertEqual(ret_module, dcp)
 
-        job = job.Job('x=>{progress();return x+1', [])
+        job = dcp.compute_for([], 'x=>{progress();return x+1')
         job.on('readystatechange', print)
 
 
