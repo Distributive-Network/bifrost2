@@ -40,6 +40,7 @@ jobs:
         poetry env use python3
         poetry install
         echo "Install [complete]"
+      timeout-minutes: 1
 
     - name: NPM ls
       run: cd dcp/js && npm ls && cd -
