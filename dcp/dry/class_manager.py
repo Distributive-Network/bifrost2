@@ -42,6 +42,7 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
             return wrap_obj(js_attr)
 
         def method(*args, **kwargs):
+            args = tuple([arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args])
             ret_val = blockify(js_attr)(*args, **kwargs)
             return wrap_obj(ret_val)
         return method
@@ -124,7 +125,7 @@ def ugly_duck_type_check(js_val):
     # Result Handle is very hard to check directly, so we duck type
     # check if it's a result handle
     result_handle_props = ['toJSON', 'newResult', 'getLength', 'slice', 'fetch']
-    if js.utils.class_name(js.utils.obj_ctor(js_val)) == 'Function':
+    if js_val is not None and js.utils.class_name(js.utils.obj_ctor(js_val)) == 'Function':
         if next((x for x in result_handle_props if js_val[x] is None), None) is None:
             return reg.find('ResultHandle')
 
