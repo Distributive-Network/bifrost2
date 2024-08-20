@@ -1,3 +1,11 @@
+"""
+Job.
+
+Wrapper class to get Bifrost2 API for the job.
+
+Author: Severn Lortie <severn@distributive.network>
+Date: July 2024
+"""
 import pythonmonkey as pm
 import cloudpickle
 import dill
@@ -34,8 +42,9 @@ def job_maker(super_class):
             self.aio.wait = self._wait;
 
         def _before_exec(self, *args, **kwargs):
+            # Any other worktime, do not apply serializers, env, jobfs
             if not self.js_ref.worktime == "pyodide":
-                pass
+                return
 
             work_function = urllib.parse.unquote(self.js_ref.workFunctionURI)
             work_function = work_function.replace("data:,", "")
@@ -69,6 +78,7 @@ def job_maker(super_class):
                 serialized_arguments = self.js_ref.jobArguments
                 serialized_input_data = self.js_ref.jobInputData
 
+            # TODO don't copy to bytearray, use bytes directly
             job_fs = bytearray(self.fs.to_gzip_tar())
             env_args = convert_env_to_arguments(self.env)
             modules = convert_modules_to_requires(self.modules)
@@ -80,7 +90,6 @@ def job_maker(super_class):
             self.js_ref.jobArguments = [offset_to_argument_vector] + ["gzImage", job_fs] + env_args + serialized_arguments + [meta_arguments]
             self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(get_work_function_string(), safe="=:,#+;")
 
-        #TODO Make sure this runs on our event loop
         def _exec(self, *args):
 
             # TODO: remove once patched in DCP (TODO: link MR)
@@ -104,7 +113,6 @@ def job_maker(super_class):
 
             return accepted_future
 
-        #TODO Make sure this runs on our event loop
         def _wait(self):
             if not self._exec_called:
                 raise Exception("Wait called before exec()")
