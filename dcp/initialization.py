@@ -81,6 +81,19 @@ def make_init_fn(dcp_module) -> Callable:
         js.dcp_client['init'](**kwargs)
         INIT_MEMO = True
 
+        # XXX apply dcp-client hacks XXX
+        # Hacks should be removed as quickly as possible
+        # You must include a dcp-client MR which fixes the hack
+
+        # dcp-client getProcessPath hack
+        # TODO remove once https://gitlab.com/Distributed-Compute-Protocol/dcp/-/merge_requests/2866 lands in prod
+        pm.eval("""
+        globalThis.dcp['dcp-env'].getProcessPath = function bf2_hack_dcpEnv$$getProcessPath()
+        {
+          return globalThis.python.eval('__import__("__main__")')['__file__'];
+        }
+        """)
+
         # build dcp modules
         for name in pm.globalThis.dcp.keys():
             init_dcp_module(dcp_module, pm.globalThis.dcp[name], name)

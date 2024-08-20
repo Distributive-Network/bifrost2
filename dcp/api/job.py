@@ -91,12 +91,6 @@ def job_maker(super_class):
             self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(get_work_function_string(), safe="=:,#+;")
 
         def _exec(self, *args):
-
-            # TODO: remove once patched in DCP (TODO: link MR)
-            # This is required since dcp-client looks for a __file__ attribute
-            if not hasattr(__import__("__main__"), '__file__'):
-                setattr(__import__("__main__"), '__file__', 'severn::repl|ipython')
-
             self._before_exec()
             self._wrapper_set_attribute("_exec_called", True)
             accepted_future = asyncio.Future()
@@ -104,12 +98,6 @@ def job_maker(super_class):
                 accepted_future.set_result(self.js_ref.id)
             self.js_ref.on('accepted', handle_accepted)
             self.js_ref.exec(*args)
-
-
-            # TODO: remove once patched in DCP
-            # refer to code and TODO comment at the top of _exec
-            if getattr(__import__("__main__"), '__file__') == 'severn::repl|ipython':
-                delattr(__import__("__main__"), '__file__')
 
             return accepted_future
 
