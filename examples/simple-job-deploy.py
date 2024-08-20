@@ -18,7 +18,6 @@ my_j.on('result', print)
 def accepted_handler(ev):
     print(f"jobid = {my_j.id}")
 
-my_j.computeGroups = [{'joinKey': 'joseph', 'joinSecret': 'pringle'}]
 my_j.public.name = 'simple bifrost2 example'
 
 my_j.exec()
