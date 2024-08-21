@@ -43,7 +43,6 @@ def accepted_handler(ev):
 # give job a name, require libraries for work function, add job to compute group
 job.public.name = 'Bifrost2 Google Colab Example'
 job.modules = ('numpy')
-job.computeGroups = [{'joinKey': 'will', 'joinSecret': 'bozo'}]
 
 
 # deploy job, wait for it to be done, print results
