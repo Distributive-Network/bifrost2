@@ -41,13 +41,31 @@ def job_maker(super_class):
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
+        def _get_raw_work_function(self):
+            """
+            Parse the raw work function and remove preceeding whitespace which
+            can occur when a function is defined within another indented scope.
+            """
+            work_function = urllib.parse.unquote(self.js_ref.workFunctionURI)
+            work_function = work_function.replace("data:,", "")
+
+            # remove additional indentation
+            lines = work_function.split('\n')
+            first_loc = next(line for line in lines if line.strip()) # find the first real line of code
+
+            num_indent_chars = len(first_loc) - len(first_loc.lstrip())
+            stripped_lines = [line[num_indent_chars:] if len(line) >= num_indent_chars else line for line in lines]
+
+            unindented_work_function = '\n'.join(stripped_lines)
+
+            return unindented_work_function
+
         def _before_exec(self, *args, **kwargs):
             # Any other worktime, do not apply serializers, env, jobfs
             if not self.js_ref.worktime == "pyodide":
                 return
 
-            work_function = urllib.parse.unquote(self.js_ref.workFunctionURI)
-            work_function = work_function.replace("data:,", "")
+            work_function = self._get_raw_work_function()
 
             meta_arguments = [
                 work_function
