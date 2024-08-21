@@ -12,19 +12,19 @@ from collections.abc import Iterator
 def numpy_save_interrogate(value):
     import numpy as np
     return isinstance(value, np.ndarray)
-def numpy_save_serialize(value):
+def numpy_save_serialize(value) -> bytes:
     import numpy as np
     from io import BytesIO
     byte_buffer = BytesIO()
     np.save(byte_buffer, value)
-    buffer.seek(0)
-    return buffer.read()
-def numpy_save_deserialize(value):
+    byte_buffer.seek(0)
+    return byte_buffer.read()
+def numpy_save_deserialize(value: bytes):
     import numpy as np
     from io import BytesIO
-    byte_buffer = BytesIO()
-    buffer.seek(0)
-    return np.load(value)
+    byte_buffer = BytesIO(value)
+    byte_buffer.seek(0)  # Reset the buffer position
+    return np.load(byte_buffer)
 
 def pickle_interrogate(value):
     return True
