@@ -26,3 +26,13 @@ def obj_ctor(js_instance):
 def equals(a, b):
     return pm.eval('(a,b) => a === b')(a, b)
 
+def throws_in_pm(value):
+    """
+    Some values such as multi dimensional numpy arrays aren't supported in PM.
+    """
+    try:
+        pm.eval('()=>{}')(value)
+    except:
+        return True
+    return False
+

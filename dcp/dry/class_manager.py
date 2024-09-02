@@ -43,6 +43,8 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
 
         def method(*args, **kwargs):
             args = tuple([arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args])
+            if True in (js.utils.throws_in_pm(arg) for arg in args):
+                raise Exception(f'Attempted to pass unsupported value to PythonMonkey')
             ret_val = blockify(js_attr)(*args, **kwargs)
             return wrap_obj(ret_val)
         return method
@@ -51,6 +53,8 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
         if name == 'js_ref':
             object.__setattr__(self, name, value)
         else:
+            if js.utils.throws_in_pm(value):
+                raise Exception(f'{type(value)} is not supported in PythonMonkey')
             self.js_ref[name] = value
 
     def _wrapper_set_attribute(self, name, value):

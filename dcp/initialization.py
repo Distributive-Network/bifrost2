@@ -34,6 +34,9 @@ def _wrap_js(prop_name, prop_ref):
         # function
         else:
             def fn_wrapper(*args, **kwargs):
+                for arg in args:
+                    if js.utils.throws_in_pm(arg):
+                        raise Exception(f'{type(arg)} is not supported in PythonMonkey')
                 ret_val = aio.blockify(prop_ref)(*args, **kwargs)
                 return _wrap_js('dynamically_accessed_property', ret_val)
             return fn_wrapper
@@ -53,6 +56,7 @@ def init_dcp_module(py_parent, js_module, js_name):
     module_name = f"{py_parent.__name__}.{underscore_name}"
 
     # TODO this is quite ugly
+    # TODO why don't we pass the js module to it so we can use it as a proxy?
     BfDyn = class_manager.make_new_class(lambda *args, **kwargs: js_module, 'Module', mutate_js=False)
     BfDyn = type(Module.__name__, (Module,), dict(BfDyn.__dict__))
     module = BfDyn()
