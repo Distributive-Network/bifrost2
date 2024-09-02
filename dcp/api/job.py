@@ -61,9 +61,12 @@ def job_maker(super_class):
             return unindented_work_function
 
         def _before_exec(self, *args, **kwargs):
+
             # Any other worktime, do not apply serializers, env, jobfs
             if not self.js_ref.worktime == "pyodide":
                 return
+
+            # pyodide worktime / bifrost 2 flavoured setup below
 
             work_function = self._get_raw_work_function()
 
@@ -79,6 +82,11 @@ def job_maker(super_class):
                 super_range_object = pm.eval("globalThis.dcp['range-object'].SuperRangeObject")
                 if isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
                     for input_slice in self.js_ref.jobInputData:
+                        # TODO - find better solution
+                        # un-hide values from PythonMonkey which aren't supported
+                        if '__pythonmonkey_guard' in input_slice:
+                            input_slice = input_slice['__pythonmonkey_guard']
+
                         serialized_slice = serialize(input_slice, self.serializers)
                         serialized_input_data.append(serialized_slice)
                 elif isinstance(self.js_ref.jobInputData, Iterator) and not utils.instanceof(self.js_ref.jobInputData, super_range_object):
@@ -87,6 +95,11 @@ def job_maker(super_class):
                     serialized_input_data = self.js_ref.jobInputData
 
                 for argument in self.js_ref.jobArguments:
+                    # TODO - find better solution
+                    # un-hide values from PythonMonkey which aren't supported
+                    if '__pythonmonkey_guard' in argument:
+                        argument = argument['__pythonmonkey_guard']
+
                     serialized_argument = serialize(argument, self.serializers)
                     serialized_arguments.append(serialized_argument)
 
