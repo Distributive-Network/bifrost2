@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dcp"
-version = "2.0.10"
+version = "2.0.11"
 description = "A DCP SDK"
 authors = [
     "Distributive <info@distributive.network>",
@@ -20,8 +20,12 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: System :: Distributed Computing"
 ]
+readme = "README.md"
+homepage = "https://github.com/Distributive-Network/bifrost2/"
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.13"
