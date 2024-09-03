@@ -84,7 +84,7 @@ def job_maker(super_class):
                     for input_slice in self.js_ref.jobInputData:
                         # TODO - find better solution
                         # un-hide values from PythonMonkey which aren't supported
-                        if '__pythonmonkey_guard' in input_slice:
+                        if isinstance(input_slice, dict) and '__pythonmonkey_guard' in input_slice:
                             input_slice = input_slice['__pythonmonkey_guard']
 
                         serialized_slice = serialize(input_slice, self.serializers)
@@ -97,7 +97,7 @@ def job_maker(super_class):
                 for argument in self.js_ref.jobArguments:
                     # TODO - find better solution
                     # un-hide values from PythonMonkey which aren't supported
-                    if '__pythonmonkey_guard' in argument:
+                    if isinstance(input_slice, dict) and '__pythonmonkey_guard' in argument:
                         argument = argument['__pythonmonkey_guard']
 
                     serialized_argument = serialize(argument, self.serializers)
