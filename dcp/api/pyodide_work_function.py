@@ -9,15 +9,18 @@ Date: Aug 2024
 import dill
 from .job_serializers import serialize, deserialize
 
-def get_work_function_string():
-    imports_string = """
-# These are default serializers so they are imported in every job
-import cloudpickle
-import numpy
+def get_work_function_string(module_imports):
+    module_imports.extend(['cloudpickle', 'numpy']) # required for bifrost2 deserialization
 
+    imports_string = """
 import sys
 from collections.abc import Iterator
+
+# Below are automatically imported modules
     """
+
+    for python_module_to_import in module_imports:
+        imports_string += f"\nimport {python_module_to_import}\n"
 
     serialize_string   = dill.source.getsource(serialize, lstrip=True)
     deserialize_string = dill.source.getsource(deserialize, lstrip=True)

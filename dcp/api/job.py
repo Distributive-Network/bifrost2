@@ -20,7 +20,7 @@ from .job_serializers import (
     validate_serializers
 )
 from .job_env import convert_env_to_arguments
-from .job_modules import convert_modules_to_requires
+from .job_modules import convert_modules_to_requires, pyodide_full_module_dependencies, convert_module_names_to_import_names
 from .job_fs import JobFS
 from collections.abc import Iterator
 from types import FunctionType
@@ -112,14 +112,21 @@ def job_maker(super_class):
             # TODO don't copy to bytearray, use bytes directly
             job_fs = bytearray(self.fs.to_gzip_tar())
             env_args = convert_env_to_arguments(self.env)
-            modules = convert_modules_to_requires(self.modules)
-            if len(modules) > 0:
-                self.js_ref.requires(modules)
+
+            modules_pyodide = pyodide_full_module_dependencies(self.modules)
+
+            #modules_dcp_packages = convert_modules_to_requires(modules_pyodide)
+            modules_dcp_packages = [] # TODO: is it a good design to use import names instead?
+
+            modules_import_names = convert_module_names_to_import_names(modules_pyodide)
+
+            if len(modules_dcp_packages) > 0:
+                self.js_ref.requires(modules_dcp_packages)
 
             offset_to_argument_vector = 3 + len(env_args)
             self.js_ref.jobInputData = serialized_input_data
             self.js_ref.jobArguments = [offset_to_argument_vector] + ["gzImage", job_fs] + env_args + serialized_arguments + [meta_arguments]
-            self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(get_work_function_string(), safe="=:,#+;")
+            self.js_ref.workFunctionURI = "data:," + urllib.parse.quote(get_work_function_string(modules_import_names), safe="=:,#+;")
 
         def _exec(self, *args):
             self._before_exec()
