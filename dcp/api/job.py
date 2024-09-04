@@ -35,7 +35,7 @@ def job_maker(super_class):
 
             self._wrapper_set_attribute("serializers", default_serializers)
             self._wrapper_set_attribute("env", {})
-            self._wrapper_set_attribute("modules", [])
+            job_js.modules = [] #TODO: why is this only done this way for job modules?
             self._wrapper_set_attribute("fs", JobFS())
             self._wrapper_set_attribute("_exec_called", False)
             self.aio.exec = self._exec;
