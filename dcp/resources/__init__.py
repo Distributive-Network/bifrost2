@@ -16,8 +16,6 @@ import json
 file_dirn = os.path.dirname(__file__)
 file_path = os.path.join(file_dirn, 'pyodide-lock.json')
 
-print(file_path)
-
 with open(file_path, 'r') as file:
     pyodide_lock_repodata_json = json.load(file)
 
