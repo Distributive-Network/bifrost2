@@ -72,7 +72,7 @@ def serialize(value, serializers):
             value = next(self.iterator)
             return serialize(value)
 
-    primitive_types = (int, float, bool, str, bytes)
+    primitive_types = (int, float, bool, str)
     if isinstance(value, primitive_types):
         return value
     if isinstance(value, Iterator):
