@@ -151,6 +151,7 @@ def job_maker(super_class):
                     results.append(result)
                 complete_future.set_result(results)
             self.js_ref.on("complete", handle_complete)
+            self.js_ref.on("cancel", handle_complete)
             return complete_future
 
         def exec(self, *args):
