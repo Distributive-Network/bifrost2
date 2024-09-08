@@ -113,6 +113,10 @@ def job_maker(super_class):
             job_fs = bytearray(self.fs.to_gzip_tar())
             env_args = convert_env_to_arguments(self.env)
 
+            # convert single string to list of one string
+            if isinstance(self.modules, str):
+                self.modules = [self.modules]
+
             modules_pyodide = pyodide_full_module_dependencies(self.modules)
 
             #modules_dcp_packages = convert_modules_to_requires(modules_pyodide)

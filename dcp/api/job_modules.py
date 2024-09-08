@@ -19,7 +19,7 @@ def pyodide_full_module_dependencies(modules):
 
     for module in modules:
         if not module in repodata['packages']:
-            raise Exception('Usage of unsupported module "${module}". "${module}" is currently not supported by the Pyodide Worktime.')
+            raise Exception(f'Usage of unsupported module "{module}". "{module}" is currently not supported by the Pyodide Worktime.')
         dependencies.extend(repodata['packages'][module]['depends'])
 
     dependencies = list(set(dependencies))
