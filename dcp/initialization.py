@@ -71,8 +71,12 @@ def init_dcp_module(py_parent, js_module, js_name):
     for prop_name, prop_ref in js_module.items():
         # modify props if required
         # TODO: should this be a dict of prop_name and list of modules with overridden ref?
+        # TODO: maybe stuff like this should be specified in one places instead of spat throughout the codebase
+        # TODO: tldr, should be more dry... somehow... figure out later...
         if prop_name == 'fetchResults' and (js_name == 'compute' or js_name == 'job'):
             setattr(module, prop_name, api.fetch_results_maker(prop_ref))
+        elif prop_name == 'addSlices' and js_name in ('compute', 'job'):
+            setattr(module, prop_name, api.add_slices_maker(prop_ref))
         else:
             setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
 
