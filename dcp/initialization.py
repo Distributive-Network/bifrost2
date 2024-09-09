@@ -69,7 +69,12 @@ def init_dcp_module(py_parent, js_module, js_name):
     setattr(py_parent, underscore_name, module)
 
     for prop_name, prop_ref in js_module.items():
-        setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
+        # modify props if required
+        # TODO: should this be a dict of prop_name and list of modules with overridden ref?
+        if prop_name == 'fetchResults' and (js_name == 'compute' or js_name == 'job'):
+            setattr(module, prop_name, api.fetch_results_maker(prop_ref))
+        else:
+            setattr(module, prop_name, _wrap_js(prop_name, prop_ref))
 
 
 def make_init_fn(dcp_module) -> Callable:
@@ -104,7 +109,7 @@ def make_init_fn(dcp_module) -> Callable:
 
         # add some api top level imports
         setattr(dcp_module, "compute_for", api.compute_for_maker(class_manager.reg.find('Job')), )
-        setattr(dcp_module, "compute_do", api.compute_do_maker(class_manager.reg.find('Job')), )
+        setattr(dcp_module, "compute_do", api.compute_do_maker(class_manager.reg.find('Job')), ) #TODO unspec'd, why is this here?
         setattr(dcp_module, "JobFS", api.JobFS, )
 
 

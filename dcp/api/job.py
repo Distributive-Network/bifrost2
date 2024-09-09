@@ -154,6 +154,7 @@ def job_maker(super_class):
                     result = deserialize(serialized_result, self.serializers)
                     results.append(result)
                 complete_future.set_result(results)
+            # TODO: on cancel, pass to cancel listener
             self.js_ref.on("complete", handle_complete)
             self.js_ref.on("cancel", handle_complete)
             return complete_future
