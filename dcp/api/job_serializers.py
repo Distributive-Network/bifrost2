@@ -122,3 +122,28 @@ def convert_serializers_to_arguments(serializers):
     serialized_serializers = bytearray(cloudpickle.dumps(stringified_serializers))
     return serialized_serializers
 
+#TODO: should this DEAD CODE be removed? or used?
+class SerializeIterWrapper:
+    """Serializes or deserializes itertaively over an iterator."""
+    def __init__(self, iterable, serializers, mode='serialize'):
+        self.iterable = iterable
+        self.serializers = serializers
+
+        if mode not in ('serialize', 'deserialize'):
+            raise ValueError(f"Mode must be 'serialize' or 'deserialize', not {mode}")
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            val = next(self.iterable)
+
+            if self.mode == 'serialize':
+                return serialize(val, self.serializers)
+            elif self.mode == 'deserialize':
+                return deserialize(val, self.deserializers)
+            return val
+        except StopIteration:
+            raise StopIteration
+

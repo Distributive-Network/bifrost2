@@ -10,6 +10,7 @@ import dill
 from .. import dry
 from .. import js
 from types import FunctionType
+from collections.abc import Iterable
 
 def compute_for_maker(Job):
     def compute_for(*args, **kwargs):
@@ -44,7 +45,7 @@ def compute_for_maker(Job):
 
         # clean up job input for PythonMonkey
         if job_input_idx != None:
-            for i, val in enumerate(args[job_input_idx]):
+            for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
                 if js.utils.throws_in_pm(val):
                     args[job_input_idx][i] = { '__pythonmonkey_guard': val }
 
@@ -55,6 +56,29 @@ def compute_for_maker(Job):
                     args[job_args_idx][i] = { '__pythonmonkey_guard': val }
 
         ####################################################
+
+        JSIterator = pm.eval("""
+        (class JSIterator {
+            constructor(pyit)
+            {
+                this.pyit = pyit;
+            }
+
+            next()
+            {
+                return this.pyit.next();
+            }
+
+            [Symbol.iterator]()
+            {
+                return this;
+            }
+        })
+        """)
+
+        if len(args) <= 3:
+            if isinstance(args[0], Iterable):
+                args[0] = pm.new(JSIterator)(iter(args[0]))#(IterableWrapper(args[0]))
 
         compute_for_js = pm.eval("globalThis.dcp.compute.for")
         job_js = dry.aio.blockify(compute_for_js)(*args, **kwargs)
