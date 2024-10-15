@@ -170,10 +170,9 @@ def job_maker(super_class):
             # deserialize job on event parameters before passing them to user defined callback
             def cb_deserialize_wrapper(callback):
                 def new_cb(*inner_args):
-                    nonlocal callback
                     new_args = []
                     for arg in inner_args:
-                        if isinstance(arg, dict) and bool(arg):
+                        if isinstance(arg, dict):
                             for key in arg:
                                 arg[key] = deserialize(arg[key], self.serializers)
                         new_args.append(deserialize(arg, self.serializers))
