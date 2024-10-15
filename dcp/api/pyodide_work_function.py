@@ -68,7 +68,7 @@ def bifrost2_setup():
 
     def slice_handler_deserialization_wrapper(serialized_datum):
         datum = deserialize(serialized_datum, serializers)
-        result = user_work_function(datum)
+        result = user_work_function(datum, *(sys.argv[1:]))
         serialized_result = serialize(result, serializers)
         return serialized_result
 
