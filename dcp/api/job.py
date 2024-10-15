@@ -167,7 +167,7 @@ def job_maker(super_class):
             return dry.aio.blockify(self._wait)()
 
         def on(self, *args):
-            # deserialize job on event parameters before passing htem to user defined callback
+            # deserialize job on event parameters before passing them to user defined callback
             def cb_deserialize_wrapper(callback):
                 def new_cb(*inner_args):
                     nonlocal callback
