@@ -167,14 +167,28 @@ def job_maker(super_class):
             return dry.aio.blockify(self._wait)()
 
         def on(self, *args):
+            # deserialize job on event parameters before passing htem to user defined callback
+            def cb_deserialize_wrapper(callback):
+                def new_cb(*inner_args):
+                    nonlocal callback
+                    new_args = []
+                    for arg in inner_args:
+                        if isinstance(arg, dict) and bool(arg):
+                            for key in arg:
+                                arg[key] = deserialize(arg[key], self.serializers)
+                        new_args.append(deserialize(arg, self.serializers))
+                    return callback(*new_args)
+                return new_cb
+
             if len(args) > 1 and callable(args[1]):
                 event_name = args[0]
-                event_cb = args[1]
+                event_cb = cb_deserialize_wrapper(args[1])
                 self.js_ref.on(event_name, event_cb)
             else:
                 event_name = args[0]
                 def decorator(fn):
-                    self.js_ref.on(event_name, fn)
+                    event_cb = cb_deserialize_wrapper(fn)
+                    self.js_ref.on(event_name, event_cb)
                 return decorator
     return Job
 
