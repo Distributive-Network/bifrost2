@@ -45,15 +45,21 @@ def compute_for_maker(Job):
 
         # clean up job input for PythonMonkey
         if job_input_idx != None:
-            for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
-                if js.utils.throws_in_pm(val):
-                    args[job_input_idx][i] = { '__pythonmonkey_guard': val }
+            if js.utils.instanceof(getattr(args[job_input_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
+                args[job_input_idx] = args[job_input_idx].js_ref
+            else:
+                for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
+                    if js.utils.throws_in_pm(val):
+                        args[job_input_idx][i] = { '__pythonmonkey_guard': val }
 
         # clean up job args for PythonMonkey
         if job_args_idx != None:
-            for i, val in enumerate(args[job_args_idx]):
-                if js.utils.throws_in_pm(val):
-                    args[job_args_idx][i] = { '__pythonmonkey_guard': val }
+            if js.utils.instanceof(getattr(args[job_args_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
+                args[job_args_idx] = args[job_args_idx].js_ref
+            else:
+                for i, val in enumerate(args[job_args_idx]):
+                    if js.utils.throws_in_pm(val):
+                        args[job_args_idx][i] = { '__pythonmonkey_guard': val }
 
         ####################################################
 
@@ -76,7 +82,7 @@ def compute_for_maker(Job):
         })
         """)
 
-        if len(args) <= 3:
+        if len(args) <= 3 and not js.utils.instanceof(args[job_input_idx], pm.eval("globalThis.dcp.compute.RemoteDataSet")):
             if isinstance(args[0], Iterable):
                 args[0] = pm.new(JSIterator)(iter(args[0]))#(IterableWrapper(args[0]))
 
