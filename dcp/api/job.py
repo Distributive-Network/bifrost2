@@ -80,7 +80,9 @@ def job_maker(super_class):
                 validate_serializers(self.serializers)
 
                 super_range_object = pm.eval("globalThis.dcp['range-object'].SuperRangeObject")
-                if isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
+                if utils.instanceof(self.js_ref.jobInputData, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
+                    serialized_input_data = self.js_ref.jobInputData
+                elif isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
                     for input_slice in self.js_ref.jobInputData:
                         # TODO - find better solution
                         # un-hide values from PythonMonkey which aren't supported
@@ -94,14 +96,18 @@ def job_maker(super_class):
                 else:
                     serialized_input_data = self.js_ref.jobInputData
 
-                for argument in self.js_ref.jobArguments:
-                    # TODO - find better solution
-                    # un-hide values from PythonMonkey which aren't supported
-                    if isinstance(input_slice, dict) and '__pythonmonkey_guard' in argument:
-                        argument = argument['__pythonmonkey_guard']
+                if utils.instanceof(self.js_ref.jobArguments, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
+                    convertToURL = pm.eval('(urlString) => new URL(urlString)')
+                    self.js_ref.jobArguments.forEach(lambda argument: serialized_arguments.append(convertToURL(argument)))
+                else:
+                    for argument in self.js_ref.jobArguments:
+                        # TODO - find better solution
+                        # un-hide values from PythonMonkey which aren't supported
+                        if isinstance(input_slice, dict) and '__pythonmonkey_guard' in argument:
+                            argument = argument['__pythonmonkey_guard']
 
-                    serialized_argument = serialize(argument, self.serializers)
-                    serialized_arguments.append(serialized_argument)
+                        serialized_argument = serialize(argument, self.serializers)
+                        serialized_arguments.append(serialized_argument)
 
                 serialized_serializers = convert_serializers_to_arguments(self.serializers)
                 meta_arguments.append(serialized_serializers)
