@@ -33,7 +33,11 @@ python = "^3.8"
 cloudpickle = "*"
 dill = "^0.3.8"
 pythonmonkey = ">=1.1.0"
-numpy = "*"
+numpy = [
+  {version = "^2.1.0",  python = ">=3.10"},
+  {version = "^2.0.1",  python = ">=3.9,<3.10"}, # NumPy 2.1.0  drops support for Python 3.9
+  {version = "^1.24.3", python = ">=3.8,<3.9"},  # NumPy 1.25.0 drops support for Python 3.8
+]
 nest_asyncio = "^1.6.0"
 
 [tool.poetry.build]
