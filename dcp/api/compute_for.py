@@ -47,7 +47,7 @@ def compute_for_maker(Job):
         if job_input_idx != None:
             if js.utils.instanceof(getattr(args[job_input_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
                 args[job_input_idx] = args[job_input_idx].js_ref
-            else:
+            elif hasattr(args[job_input_idx], '__setitem__'):
                 for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
                     if js.utils.throws_or_coerced_in_pm(val):
                         args[job_input_idx][i] = { '__pythonmonkey_guard': val }
@@ -56,7 +56,7 @@ def compute_for_maker(Job):
         if job_args_idx != None:
             if js.utils.instanceof(getattr(args[job_args_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
                 args[job_args_idx] = args[job_args_idx].js_ref
-            else:
+            elif hasattr(args[job_args_idx], '__setitem__'):
                 for i, val in enumerate(args[job_args_idx]):
                     if js.utils.throws_or_coerced_in_pm(val):
                         args[job_args_idx][i] = { '__pythonmonkey_guard': val }
