@@ -55,3 +55,15 @@ def throws_in_pm(value):
         return True
     return False
 
+def throws_or_coerced_in_pm(value):
+    """
+    Some values such as multi dimensional numpy arrays aren't supported in PM, and others
+    may have their types coerced to new values, such as single dimensional numpy arrays
+    """
+    try:
+        res = pm.eval('(val)=>val')(value)
+        if type(res) != type(value):
+          return True
+    except:
+        return True
+    return False

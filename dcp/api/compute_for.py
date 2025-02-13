@@ -49,7 +49,7 @@ def compute_for_maker(Job):
                 args[job_input_idx] = args[job_input_idx].js_ref
             else:
                 for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
-                    if js.utils.throws_in_pm(val):
+                    if js.utils.throws_or_coerced_in_pm(val):
                         args[job_input_idx][i] = { '__pythonmonkey_guard': val }
 
         # clean up job args for PythonMonkey
@@ -58,7 +58,7 @@ def compute_for_maker(Job):
                 args[job_args_idx] = args[job_args_idx].js_ref
             else:
                 for i, val in enumerate(args[job_args_idx]):
-                    if js.utils.throws_in_pm(val):
+                    if js.utils.throws_or_coerced_in_pm(val):
                         args[job_args_idx][i] = { '__pythonmonkey_guard': val }
 
         ####################################################
