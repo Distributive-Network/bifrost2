@@ -33,7 +33,6 @@ Rectangle;
 
         self.assertTrue(my_rect.area == 2 * 7)
         self.assertTrue(my_rect.calcArea() == 2 * 7)
-        return True
 
     def test_aio_methods(self):
         MyClass = pm.eval("""

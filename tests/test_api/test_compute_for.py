@@ -20,6 +20,10 @@ class TestComputeFor(unittest.TestCase):
         dcp.compute_for(range(1,4), '')
         pass
 
+    def test_numpy_array(self):
+        import numpy as np
+        dcp.compute_for([np.array([1]), np.array([2])], '', [np.array([3]), np.array([[1]])])
+
 if __name__ == '__main__':
     unittest.main()
 
