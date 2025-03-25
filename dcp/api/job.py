@@ -105,6 +105,9 @@ def job_maker(super_class):
                         # un-hide values from PythonMonkey which aren't supported
                         if isinstance(argument, dict) and '__pythonmonkey_guard' in argument:
                             argument = argument['__pythonmonkey_guard']
+                        if utils.instanceof(argument, pm.eval("URL")):
+                            serialized_arguments.append(argument)
+                            continue
 
                         serialized_argument = serialize(argument, self.serializers)
                         serialized_arguments.append(serialized_argument)
