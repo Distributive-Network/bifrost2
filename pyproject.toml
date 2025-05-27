@@ -31,7 +31,7 @@ homepage = "https://github.com/Distributive-Network/bifrost2/"
 [tool.poetry.dependencies]
 python = "^3.8"
 cloudpickle = "*"
-dill = "^0.3.8"
+dill = "^0.3.7"
 pythonmonkey = ">=1.1.0"
 numpy = [
   {version = "^2.1.0",           python = ">=3.13"},      # NumPy 2.1.0  adds support for Python 3.13
