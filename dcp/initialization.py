@@ -68,8 +68,14 @@ def init_dcp_module(py_parent, js_module, js_name):
     # add the new module as a submodule of the root module
     setattr(py_parent, underscore_name, module)
 
-    if hasattr(js_module, 'items'):
-        for prop_name, prop_ref in js_module.items():
+    if hasattr(js_module, 'keys'):
+        for prop_name in js_module.keys():
+            try:
+                prop_ref = js_module[prop_name]
+            except TypeError:
+                # Unsupported types may also be exported on the js_module scope, we can ignore them
+                # "TypeError: symbol type is not handled by PythonMonkey yet"
+                continue
             # modify props if required
             # TODO: should this be a dict of prop_name and list of modules with overridden ref?
             # TODO: maybe stuff like this should be specified in one places instead of spat throughout the codebase
