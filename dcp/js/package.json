@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "dcp-client": "^5.0.3"
+    "dcp-client": "5.0.1"
   }
 }
