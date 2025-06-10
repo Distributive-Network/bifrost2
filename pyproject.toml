@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dcp"
-version = "3.3.2"
+version = "3.3.3"
 description = "A DCP SDK"
 authors = [
     "Distributive <info@distributive.network>",
