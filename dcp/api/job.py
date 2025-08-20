@@ -78,10 +78,8 @@ def job_maker(super_class):
             serialized_input_data = []
             if len(self.serializers):
                 validate_serializers(self.serializers)
-
-                super_range_object = pm.eval("globalThis.dcp['range-object'].SuperRangeObject")
-                if utils.instanceof(self.js_ref.jobInputData, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-                    serialized_input_data = self.js_ref.jobInputData
+                if hasattr(self.js_ref.jobInputData, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.js_ref.jobInputData.js_ref):
+                    serialized_input_data = self.js_ref.jobInputData.js_ref
                 elif isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
                     for input_slice in self.js_ref.jobInputData:
                         # TODO - find better solution
@@ -89,28 +87,35 @@ def job_maker(super_class):
                         if isinstance(input_slice, dict) and '__pythonmonkey_guard' in input_slice:
                             input_slice = input_slice['__pythonmonkey_guard']
 
-                        serialized_slice = serialize(input_slice, self.serializers)
-                        serialized_input_data.append(serialized_slice)
-                elif isinstance(self.js_ref.jobInputData, Iterator) and not utils.instanceof(self.js_ref.jobInputData, super_range_object):
-                    serialized_input_data = serialize(self.js_ref.jobInputData, self.serializers)
+                        # only serialize non-dcp values
+                        if hasattr(input_slice, 'js_ref') and dry.class_manager.reg.find_from_js_instance(input_slice.js_ref):
+                            serialized_input_data.append(input_slice.js_ref)
+                        else:
+                            serialized_slice = serialize(input_slice, self.serializers)
+                            serialized_input_data.append(serialized_slice)
                 else:
                     serialized_input_data = self.js_ref.jobInputData
-
-                if utils.instanceof(self.js_ref.jobArguments, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-                    convertToURL = pm.eval('(urlString) => new URL(urlString)')
-                    self.js_ref.jobArguments.forEach(lambda argument: serialized_arguments.append(convertToURL(argument)))
+                if hasattr(self.js_ref.jobArguments, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.js_ref.jobArguments.js_ref):
+                    serialized_arguments = self.js_ref.jobArguments.js_ref
+                # if utils.instanceof(self.js_ref.jobArguments, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
+                    # convertToURL = pm.eval('(urlString) => new URL(urlString)')
+                    # self.js_ref.jobArguments.forEach(lambda argument: serialized_arguments.append(convertToURL(argument)))
                 else:
                     for argument in self.js_ref.jobArguments:
                         # TODO - find better solution
                         # un-hide values from PythonMonkey which aren't supported
                         if isinstance(argument, dict) and '__pythonmonkey_guard' in argument:
                             argument = argument['__pythonmonkey_guard']
-                        if utils.instanceof(argument, pm.eval("URL")):
+                        if utils.instanceof(argument, pm.eval("URL")): # Still needed?
                             serialized_arguments.append(argument)
                             continue
 
-                        serialized_argument = serialize(argument, self.serializers)
-                        serialized_arguments.append(serialized_argument)
+                        # only serialize non-dcp values
+                        if hasattr(argument, 'js_ref') and dry.class_manager.reg.find_from_js_instance(argument.js_ref):
+                            serialized_arguments.append(argument.js_ref)
+                        else:
+                            serialized_argument = serialize(argument, self.serializers)
+                            serialized_arguments.append(serialized_argument)
 
                 serialized_serializers = convert_serializers_to_arguments(self.serializers)
                 meta_arguments.append(serialized_serializers)
