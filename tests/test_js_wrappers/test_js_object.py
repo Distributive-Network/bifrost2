@@ -95,7 +95,7 @@ Human;
         address = pm.new(Address)(hex_code)
         py_obj = class_manager.wrap_obj(address)
 
-        self.assertTrue(py_obj.address == hex_code)
+        self.assertTrue(py_obj.eq(hex_code))
 
         self.assertTrue(isinstance(py_obj, dcp.wallet.Address))
 

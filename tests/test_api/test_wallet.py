@@ -12,14 +12,13 @@ class TestWallet(unittest.TestCase):
 
         address = ks.address
         self.assertTrue(isinstance(address, dcp.wallet.Address))
-        self.assertTrue(address.eq(address.address))
+        self.assertTrue(address.eq(address.toString()))
 
     def test_smoke_async_get(self):
         ks1 = dcp.wallet.get()
         ks2 = asyncio.run(dcp.wallet.aio.get())
 
-        # TODO: we can't pass the address in since ks2.address is python... need to fix.
-        self.assertTrue(ks1.address.eq(ks2.address.address))
+        self.assertTrue(ks1.address.eq(ks2.address))
         
 
 if __name__ == '__main__':
