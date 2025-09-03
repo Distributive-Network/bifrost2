@@ -37,6 +37,9 @@ class ClassRegistry:
             class_cname = js.utils.class_name(c.get_js_class())
 
             return js_inst_is_instance and instance_cname == class_cname
+
+        if js_inst is None:
+          return None
         return self._find(cmp)
 
     def find_from_name(self, name):
