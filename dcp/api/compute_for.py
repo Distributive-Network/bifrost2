@@ -16,11 +16,6 @@ def compute_for_maker(Job):
     def compute_for(*args, **kwargs):
         args = list(args)
 
-        for i, arg in enumerate(args):
-            if isinstance(arg, FunctionType):
-                args[i] = dill.source.getsource(arg)
-
-
         # Hide values from PythonMonkey which aren't supported
         # TODO: This is bad for a number of reasons:
         ####################################################
@@ -32,34 +27,63 @@ def compute_for_maker(Job):
         job_input_idx = None
         job_args_idx = None
 
-        # compute.for(start, end, step, work, args)
-        if len(args) == 5:
-            job_args_idx = 4
+        for i, arg in enumerate(args):
+            if isinstance(arg, FunctionType) or isinstance(arg, str):
+                # work function arg separates input from arguments, find indices to hide based on it
+                if i == 1: # compute.for(iterableObject, work, args), need to wrap iterable
+                    job_input_idx = 0
+                if i < len(args) - 1: # work function isn't last argument, so last value is args in compute.for
+                    job_args_idx = len(args) - 1
+                if isinstance(arg, FunctionType):
+                  args[i] = dill.source.getsource(arg)
 
-        # compute.for(iterableObject, work, args)
-        elif len(args) <= 3:
-            job_input_idx = 0
-
-            if len(args) == 3:
-                job_args_idx = 2
-
-        # clean up job input for PythonMonkey
+        # Process for ensuring symbols aren't mutated in the python -> js layer:
+        #  1. Check if symbol is coming from a dcp module/class. If so, set it as the js_ref. Skip next steps.
+        #  2. Determine if input array can be mutated, or create new array for input set
+        #  3. For each input element, dereference js_ref if from dcp-client, add a guard if pythonmonkey will mutate it, else as it as-is.
         if job_input_idx != None:
-            if js.utils.instanceof(getattr(args[job_input_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-                args[job_input_idx] = args[job_input_idx].js_ref
-            elif hasattr(args[job_input_idx], '__setitem__'):
-                for i, val in enumerate(args[job_input_idx]): #TODO don't enumerate each time... perhaps wrap in iterator
-                    if js.utils.throws_or_coerced_in_pm(val):
-                        args[job_input_idx][i] = { '__pythonmonkey_guard': val }
+            if hasattr(args[job_input_idx], 'js_ref') and dry.class_manager.reg.find_from_js_instance(args[job_input_idx].js_ref):
+                args[job_input_idx] = args[job_input_idx]
+            else:
+                try:
+                    tmp = args[job_input_idx][0]
+                    args[job_input_idx][0] = { 'arbitrary-input-test': True }
+                    args[job_input_idx][0] = tmp
 
-        # clean up job args for PythonMonkey
+                    newArr = args[job_input_idx]
+                except (ValueError, TypeError, IndexError):
+                    newArr = [ 'placeholder' for i in range(len(args[job_input_idx]))]
+
+                for i, val in enumerate(args[job_input_idx]):
+                    if hasattr(val, 'js_ref') and dry.class_manager.reg.find_from_js_instance(val.js_ref):
+                        newArr[i] = val
+                    elif js.utils.throws_or_coerced_in_pm(val):
+                        newArr[i] = { '__pythonmonkey_guard': val }
+                    else:
+                        newArr[i] = val
+                args[job_input_idx] = newArr
+
         if job_args_idx != None:
-            if js.utils.instanceof(getattr(args[job_args_idx], "js_ref", None), pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-                args[job_args_idx] = args[job_args_idx].js_ref
-            elif hasattr(args[job_args_idx], '__setitem__'):
+            if hasattr(args[job_args_idx], 'js_ref') and dry.class_manager.reg.find_from_js_instance(args[job_args_idx].js_ref):
+                args[job_args_idx] = args[job_args_idx]
+            else:
+                try:
+                    tmp = args[job_args_idx][0]
+                    args[job_args_idx][0] = { 'arbitrary-input-test': True }
+                    args[job_args_idx][0] = tmp
+
+                    newArr = args[job_args_idx]
+                except ValueError as e:
+                    newArr = [ 'placeholder' for i in range(len(args[job_args_idx]))]
+
                 for i, val in enumerate(args[job_args_idx]):
-                    if js.utils.throws_or_coerced_in_pm(val):
-                        args[job_args_idx][i] = { '__pythonmonkey_guard': val }
+                    if hasattr(val, 'js_ref') and dry.class_manager.reg.find_from_js_instance(val.js_ref):
+                        newArr[i] = val
+                    elif js.utils.throws_or_coerced_in_pm(val):
+                        newArr[i] = { '__pythonmonkey_guard': val }
+                    else:
+                        newArr[i] = val
+                args[job_args_idx] = newArr
 
         ####################################################
 
@@ -81,10 +105,6 @@ def compute_for_maker(Job):
             }
         })
         """)
-
-        if len(args) <= 3 and not js.utils.instanceof(args[job_input_idx], pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-            if isinstance(args[0], Iterable):
-                args[0] = pm.new(JSIterator)(iter(args[0]))#(IterableWrapper(args[0]))
 
         compute_for_js = pm.eval("globalThis.dcp.compute.for")
         job_js = dry.aio.blockify(compute_for_js)(*args, **kwargs)
