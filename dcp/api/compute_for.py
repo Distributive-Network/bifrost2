@@ -28,13 +28,14 @@ def compute_for_maker(Job):
         job_args_idx = None
 
         for i, arg in enumerate(args):
-            if isinstance(arg, FunctionType):
+            if isinstance(arg, FunctionType) or isinstance(arg, str):
                 # work function arg separates input from arguments, find indices to hide based on it
                 if i == 1: # compute.for(iterableObject, work, args), need to wrap iterable
                     job_input_idx = 0
                 if i < len(args) - 1: # work function isn't last argument, so last value is args in compute.for
                     job_args_idx = len(args) - 1
-                args[i] = dill.source.getsource(arg)
+                if isinstance(arg, FunctionType):
+                  args[i] = dill.source.getsource(arg)
 
         # Process for ensuring symbols aren't mutated in the python -> js layer:
         #  1. Check if symbol is coming from a dcp module/class. If so, set it as the js_ref. Skip next steps.
@@ -50,7 +51,7 @@ def compute_for_maker(Job):
                     args[job_input_idx][0] = tmp
 
                     newArr = args[job_input_idx]
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, IndexError):
                     newArr = [ 'placeholder' for i in range(len(args[job_input_idx]))]
 
                 for i, val in enumerate(args[job_input_idx]):
