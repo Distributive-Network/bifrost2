@@ -12,6 +12,7 @@ Date: July 2024
 import pathlib
 import tarfile
 import os
+import posixpath
 import io
 
 import readline
@@ -50,28 +51,28 @@ class JobFS:
                 raise Exception('Must specify a destination file path to write to')
         elif isinstance(local_src, str) or isinstance(local_src, pathlib.PurePath):
             if vfs_dest is None:
-                vfs_dest = os.path.basename(local_src)
+                vfs_dest = posixpath.basename(local_src)
             local_src = str(local_src)
 
         vfs_dest = self._resolve_path(vfs_dest)
 
         # build up path along the way if not present
-        dest_parts = list(pathlib.Path(vfs_dest).parts)
+        dest_parts = list(pathlib.PurePosixPath(vfs_dest).parts)
         built_parts = '/'
         new_filename = dest_parts.pop()
         for part in dest_parts:
-            built_parts = os.path.join(built_parts, part)
+            built_parts = posixpath.join(built_parts, part)
             self.mkdir(built_parts)
 
         parent_dirnode = self._path_to_dir_node(built_parts)
 
         if isinstance(local_src, bytes) or isinstance(local_src, bytearray):
             parent_dirnode[new_filename] = local_src
-        elif os.path.isdir(local_src):
+        elif posixpath.isdir(local_src):
             self.mkdir(vfs_dest)
             dir_list = os.listdir(local_src)
             for sub_path in dir_list:
-                self.add(os.path.join(local_src, sub_path), os.path.join(vfs_dest, sub_path))
+                self.add(posixpath.join(local_src, sub_path), posixpath.join(vfs_dest, sub_path))
         else:
             with open(local_src, 'rb') as f:
                 content = f.read()
@@ -89,12 +90,12 @@ class JobFS:
         if path.startswith('~'):
             path = path.replace('~', self.home, 1)
         if not path.startswith('/'):
-            path = os.path.join(self.cwd, path)
-        return os.path.normpath(path)
+            path = posixpath.join(self.cwd, path)
+        return posixpath.normpath(path)
 
     def _path_to_dir_node(self, path):
         dirnode = self.vfs
-        parts = pathlib.Path(path).parts
+        parts = pathlib.PurePosixPath(path).parts
         for part in parts:
             if part not in dirnode:
                 return None
@@ -109,16 +110,17 @@ class JobFS:
             if key == '/':
                 continue
             if isinstance(dirnode[key], dict):
-                files.append((os.path.join(path_so_far, key), None))
-                files = files + self._flatten_vfs(dirnode[key], os.path.join(path_so_far, key))
+                files.append((posixpath.join(path_so_far, key), None))
+                files = files + self._flatten_vfs(dirnode[key], posixpath.join(path_so_far, key))
             else:
-                files.append((os.path.join(path_so_far, key), dirnode[key]))
+                files.append((posixpath.join(path_so_far, key), dirnode[key]))
         return files
 
     def to_gzip_tar(self) -> bytes:
         """Serializes the vfs into a zip-compressed tarball."""
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode='w:gz') as tar:
+
             for (file_path, file_content) in self._flatten_vfs():
                 tar_info = tarfile.TarInfo(name=file_path)
                 if file_content is None:
@@ -141,7 +143,7 @@ class JobFS:
     def mkdir(self, new_dir):
         """For debugging."""
         new_dir = self._resolve_path(new_dir)
-        parts = pathlib.Path(new_dir).parts
+        parts = pathlib.PurePosixPath(new_dir).parts
         prev_dirnode = self.vfs
         for part in parts:
             if part not in prev_dirnode:
@@ -174,7 +176,7 @@ class JobFS:
             dir_to_list = self.cwd
         else:
             dir_to_list = self._resolve_path(dir_to_list)
-        parts = pathlib.Path(dir_to_list).parts
+        parts = pathlib.PurePosixPath(dir_to_list).parts
         dir_node = self.vfs
         for part in parts:
             dir_node = dir_node[part]
