@@ -8,7 +8,7 @@ class TestWallet(unittest.TestCase):
 
     def test_smoke_keystore_address(self):
         ks = dcp.wallet.get()
-        self.assertTrue(pm.eval("(x)=> x instanceof dcp.wallet.BankAccountKeystore")(ks.js_ref))
+        self.assertTrue(pm.eval("(x)=> x instanceof dcp.wallet.Keystore")(ks.js_ref))
 
         address = ks.address
         self.assertTrue(isinstance(address, dcp.wallet.Address))
