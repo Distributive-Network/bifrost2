@@ -26,7 +26,9 @@ def isclass(ref):
     # if a js object prototype has more than one own property, it is a class
     proto_own_prop_names = pm.eval(
         'x=>(x?.prototype ? Object.getOwnPropertyNames(x?.prototype) : [])')
-    return len(proto_own_prop_names(ref)) > 1
+    # @TODO: what if instead of coming up with a better way, I just made it more cursed?
+    is_es6_class = pm.eval('x => /^class /.test(Function.prototype.toString.call(x))')
+    return len(proto_own_prop_names(ref)) > 1 or is_es6_class(ref)
 
 
 def class_name(JSClass):
