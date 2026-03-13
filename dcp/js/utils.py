@@ -27,7 +27,7 @@ def isclass(ref):
     proto_own_prop_names = pm.eval(
         'x=>(x?.prototype ? Object.getOwnPropertyNames(x?.prototype) : [])')
     # @TODO: what if instead of coming up with a better way, I just made it more cursed?
-    is_es6_class = pm.eval('x => /^class/.test(Function.prototype.toString.call(x))')
+    is_es6_class = pm.eval('x => /^class /.test(Function.prototype.toString.call(x))')
     return len(proto_own_prop_names(ref)) > 1 or is_es6_class(ref)
 
 
