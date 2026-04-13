@@ -37,7 +37,9 @@ def _wrap_js(prop_name, prop_ref):
                 for arg in args:
                     if js.utils.throws_in_pm(arg):
                         raise Exception(f'{type(arg)} is not supported in PythonMonkey')
-                ret_val = aio.blockify(prop_ref)(*args, **kwargs)
+                # If function takes BF2 objects, the underlying JS proxy must be passed instead
+                unwrapped_args = tuple(arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args)
+                ret_val = aio.blockify(prop_ref)(*unwrapped_args, **kwargs)
                 return _wrap_js('dynamically_accessed_property', ret_val)
             return fn_wrapper
 
