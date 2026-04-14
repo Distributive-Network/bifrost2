@@ -43,7 +43,7 @@ def compute_for_maker(Job):
         #  3. For each input element, dereference js_ref if from dcp-client, add a guard if pythonmonkey will mutate it, else as it as-is.
         if job_input_idx != None:
             if hasattr(args[job_input_idx], 'js_ref') and dry.class_manager.reg.find_from_js_instance(args[job_input_idx].js_ref):
-                args[job_input_idx] = args[job_input_idx]
+                args[job_input_idx] = args[job_input_idx].js_ref
             else:
                 try:
                     tmp = args[job_input_idx][0]
@@ -65,7 +65,7 @@ def compute_for_maker(Job):
 
         if job_args_idx != None:
             if hasattr(args[job_args_idx], 'js_ref') and dry.class_manager.reg.find_from_js_instance(args[job_args_idx].js_ref):
-                args[job_args_idx] = args[job_args_idx]
+                args[job_args_idx] = args[job_args_idx].js_ref
             else:
                 try:
                     tmp = args[job_args_idx][0]
