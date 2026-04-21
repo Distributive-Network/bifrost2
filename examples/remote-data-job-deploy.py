@@ -21,17 +21,19 @@ server_thread = threading.Thread(target=httpd.serve_forever)
 server_thread.daemon = True 
 server_thread.start()
 
-def workfn(x):
+def workfn(x,y):
     import dcp
     dcp.progress()
-    return x * x
+    return x * y
 
 
 # 'http://localhost:12345' must be added to a Worker's allowed origins for slices to be completed
 # run worker.originManager.add('http://localhost:12345', null, null) in the console, or edit the worker config
 # On the public group the job will encounter many errors since workers by default can't access that URL
 my_rdp = dcp.compute.RemoteDataPattern('http://localhost:12345/{slice}',5)
-my_j =  dcp.compute_for(my_rdp, workfn)
+my_rds = dcp.compute.RemoteDataSet('http://localhost:12345/2')
+
+my_j =  dcp.compute_for(my_rdp, workfn, my_rds)
 
 
 # add event listeners
