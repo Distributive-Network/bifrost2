@@ -27,7 +27,9 @@ def workfn(x):
     return x * x
 
 
-# create job with RemoteDataPattern
+# 'http://localhost:12345' must be added to a Worker's allowed origins for slices to be completed
+# run worker.originManager.add('http://localhost:12345', null, null) in the console, or edit the worker config
+# On the public group the job will encounter many errors since workers by default can't access that URL
 my_rdp = dcp.compute.RemoteDataPattern('http://localhost:12345/{slice}',5)
 my_j =  dcp.compute_for(my_rdp, workfn)
 
