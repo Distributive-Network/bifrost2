@@ -78,8 +78,8 @@ def job_maker(super_class):
             serialized_input_data = []
             if len(self.serializers):
                 validate_serializers(self.serializers)
-                if hasattr(self.js_ref.jobInputData, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.js_ref.jobInputData.js_ref):
-                    serialized_input_data = self.js_ref.jobInputData.js_ref
+                if hasattr(self.jobInputData, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.jobInputData.js_ref):
+                    serialized_input_data = self.jobInputData.js_ref
                 elif isinstance(self.js_ref.jobInputData, list) or utils.instanceof(self.js_ref.jobInputData, pm.globalThis.Array):
                     for input_slice in self.js_ref.jobInputData:
                         # TODO - find better solution
@@ -95,11 +95,8 @@ def job_maker(super_class):
                             serialized_input_data.append(serialized_slice)
                 else:
                     serialized_input_data = self.js_ref.jobInputData
-                if hasattr(self.js_ref.jobArguments, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.js_ref.jobArguments.js_ref):
-                    serialized_arguments = self.js_ref.jobArguments.js_ref
-                # if utils.instanceof(self.js_ref.jobArguments, pm.eval("globalThis.dcp.compute.RemoteDataSet")):
-                    # convertToURL = pm.eval('(urlString) => new URL(urlString)')
-                    # self.js_ref.jobArguments.forEach(lambda argument: serialized_arguments.append(convertToURL(argument)))
+                if hasattr(self.jobArguments, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.jobArguments.js_ref):
+                    serialized_arguments = [self.jobArguments.js_ref]
                 else:
                     for argument in self.js_ref.jobArguments:
                         # TODO - find better solution
