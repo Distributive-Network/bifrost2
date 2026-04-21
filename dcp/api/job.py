@@ -96,7 +96,7 @@ def job_maker(super_class):
                 else:
                     serialized_input_data = self.js_ref.jobInputData
                 if hasattr(self.jobArguments, 'js_ref') and dry.class_manager.reg.find_from_js_instance(self.jobArguments.js_ref):
-                    serialized_arguments = self.jobArguments.js_ref
+                    serialized_arguments = [self.jobArguments.js_ref]
                 else:
                     for argument in self.js_ref.jobArguments:
                         # TODO - find better solution
