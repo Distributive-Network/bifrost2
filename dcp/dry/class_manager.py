@@ -101,7 +101,9 @@ def wrap_class(js_class, name=None):
         # otherwise, instantiate a new underlying js ref using the ctor args
         else:
             async_wrapped_ctor = blockify(pm.new(js_class))
-            self.js_ref = async_wrapped_ctor(*args, **kwargs)
+            # If constructor takes other BF2 objects, the underlying JS proxy must be passed instead
+            unwrapped_args = tuple(arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args)
+            self.js_ref = async_wrapped_ctor(*unwrapped_args, **kwargs)
         return self.js_ref
 
     return make_new_class(js_ref_generator, name, js_class=js_class)
@@ -120,6 +122,10 @@ def wrap_obj(js_val):
             bfclass = reg.add(bfclass)
 
         return bfclass(js_val)
+
+    # TODO: Arrays from bf2 objects are returned UNWRAPPED as pm.JSArrayProxy 
+    # TODO: This causes errors when you call an async function within an array
+    # TODO: To solve this we likely have to write a bf2 array wrapper?
     return js_val
 
 # TODO: there must be a better way to check for this...
