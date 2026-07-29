@@ -29,7 +29,7 @@ def work_function(input_datum):
 job = dcp.compute_for(data, work_function)
 
 # add event listeners for debug logs
-job.on('readyStateChange', print)
+job.on('readystatechange', print)
 job.on('accepted', lambda: print(job.id))
 
 @job.on('result')
