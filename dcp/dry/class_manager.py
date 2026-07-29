@@ -15,6 +15,18 @@ from .. import js
 reg = ClassRegistry()
 
 
+def unwrap_obj(val):
+    """ Unwraps a BF2 class instance back into its underlying JS Proxy """
+    return val.js_ref if hasattr(val, 'js_ref') else val
+
+def unwrap_args(args):
+    """ 
+    Unwraps an argument list before it is handed to JS
+
+    This is nessecary since the underlying JS won't expect a BF2 class
+    """
+    return tuple(unwrap_obj(arg) for arg in args)
+
 def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
     def __init__(self, *args, **kwargs):
         self.js_ref = ctor_js_ref_init(self, *args, **kwargs)
@@ -42,7 +54,7 @@ def make_new_class(ctor_js_ref_init, name, js_class=None, mutate_js=True):
             return wrap_obj(js_attr)
 
         def method(*args, **kwargs):
-            args = tuple([arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args])
+            args = unwrap_args(args)
             if True in (js.utils.throws_in_pm(arg) for arg in args):
                 raise Exception(f'Attempted to pass unsupported value to PythonMonkey')
             ret_val = blockify(js_attr)(*args, **kwargs)
@@ -102,8 +114,7 @@ def wrap_class(js_class, name=None):
         else:
             async_wrapped_ctor = blockify(pm.new(js_class))
             # If constructor takes other BF2 objects, the underlying JS proxy must be passed instead
-            unwrapped_args = tuple(arg.js_ref if hasattr(arg, 'js_ref') else arg for arg in args)
-            self.js_ref = async_wrapped_ctor(*unwrapped_args, **kwargs)
+            self.js_ref = async_wrapped_ctor(*unwrap_args(args), **kwargs)
         return self.js_ref
 
     return make_new_class(js_ref_generator, name, js_class=js_class)
