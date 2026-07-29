@@ -100,6 +100,8 @@ def on_accepted_callback(event):
 
 Sets the bank account keystore that pays for the job's slices. Call before `job.exec()` -- equivalent to passing `paymentAccountKeystore` to `job.exec()` directly.
 
+The methods below are confirmed to exist -- `tests/test_api/test_job.py` checks for their presence on a `Job` instance -- but, unlike `setPaymentAccountKeystore` above (which a test actually calls), none of them are exercised by a test that calls them. Treat their behavior as unverified until you've confirmed it for your own use case.
+
 **`job.setSlicePaymentOffer(offer: Union[float, dict]) -> None`**
 
 Sets how many DCCs to offer per slice. Equivalent to passing `slicePaymentOffer` to `job.exec()` directly.
@@ -118,9 +120,11 @@ Resumes a job that was paused, for example after running out of funds.
 
 **`job.localExec(cores: int = 1, *args) -> ResultHandle`**
 
-Runs the job on the local machine using dcp-client's bundled evaluator instead of distributing it to remote DCP Workers -- convenient for testing. This mirrors the JS API; it isn't yet confirmed whether it supports Pyodide (Python) work functions the same way it supports JS ones.
+Runs the job on the local machine using dcp-client's bundled evaluator, in place of `job.exec()`. This mirrors the JS API, but it's unconfirmed whether it works for Pyodide (Python) work functions the way it does for JS ones -- there's no test or example exercising it from Python.
 
 #### Job Attributes
+
+`status`, `work`, `collateResults`, and `requirements` below are read directly off the underlying JS `Job` object, and their shapes come straight from that object's own source, so they're accurate as descriptions -- but like the methods above, they aren't exercised by any bifrost2 test or example.
 **`job.autoClose`**
 
 Whether or not the job will remain open to accepting more slices after it has been deployed.
