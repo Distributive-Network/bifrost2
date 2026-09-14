@@ -174,7 +174,74 @@ def job_maker(super_class):
             results = dry.aio.blockify(self._exec)(*args)
             return results
 
+        def localExec(self, *args, **kwargs):
+            # localExec() was otherwise inherited unmodified from the generic
+            # JS-proxy wrapper (dry/class_manager.py __getattr__), which calls
+            # straight through to self.js_ref['localExec'] and skips
+            # _before_exec() entirely. For the pyodide worktime, _before_exec()
+            # is what rewrites workFunctionURI into the real bifrost2-wrapped
+            # script (imports, serializers, and the dcp.set_slice_handler()
+            # registration) -- without it the raw user Python source is sent
+            # as-is, which never calls dcp.set_slice_handler() (->
+            # ENOSLICEHANDLER in the pyodide worktime) and never marks
+            # _exec_called (-> "Wait called before exec()" from _wait(), on
+            # the rare path that does reach it). Mirror _exec()'s setup here
+            # so localExec() works for pyodide jobs too, matching the real
+            # Node.js usage pattern (`const results = await job.localExec()`)
+            # instead of requiring a separate `.wait()` call afterward -- see
+            # the note on _wait() above for why calling .wait() after
+            # .localExec() doesn't work anyway.
+            self._before_exec()
+            self._wrapper_set_attribute("_exec_called", True)
+            try:
+                ret_val = dry.aio.blockify(self.js_ref.localExec)(*args, **kwargs)
+            except Exception as e:
+                # When a work function raises, the real error message (a
+                # genuine Python traceback pointing at the user's own work
+                # function) is already present on `e.jsError.message` --
+                # pythonmonkey.SpiderMonkeyError exposes the real underlying
+                # JS Error as `.jsError`, whose `.message` is exactly the
+                # `reason` string passed to the job's cancellation path.
+                # Without this, the caller sees a SpiderMonkeyError whose
+                # message is buried under a wall of dcp-client's OWN internal
+                # JS stack frames (DCPError/onCancel/eventHandlerWrapper/...)
+                # that have nothing to do with the actual bug. Re-raise with
+                # just the real message so job.localExec() fails the way a
+                # broken work function should: point straight at the user's
+                # own code, not at DCP's internals.
+                js_error = getattr(e, 'jsError', None)
+                message = getattr(js_error, 'message', None) if js_error is not None else None
+                if message:
+                    raise RuntimeError(message) from None
+                raise
+            # ret_val resolves to the job's ResultHandle -- a Proxy whose
+            # get/has/ownKeys traps make pythonmonkey report
+            # `typeof ret_val === "function"`, which doesn't support the
+            # generic subscript-based __getattr__ wrap_obj() normally relies
+            # on ("'pythonmonkey.JSFunctionProxy' object is not
+            # subscriptable"). Convert it to a plain JS array the same way
+            # Node's own usage does (`Array.from(results)`) and deserialize
+            # each value exactly like _wait()'s handle_complete does, so this
+            # returns a plain, ready-to-use Python list -- matching what
+            # `results = job.localExec()` should intuitively give back.
+            to_array = pm.eval("(rh) => Array.from(rh)")
+            raw_values = to_array(ret_val)
+            return [deserialize(v, self.serializers) for v in raw_values]
+
         def wait(self):
+            # NOTE: for a localExec() job, registering these listeners here
+            # is too late to ever see the 'complete' event -- the real JS
+            # localExec() Promise (awaited inside localExec() above) does not
+            # resolve until the WHOLE job (including the 'complete' event
+            # this function listens for) has already finished, so by the
+            # time _wait() runs, that event has already fired and been
+            # missed (EventEmitters don't replay past events to newly-added
+            # listeners). For localExec(), use its own return value instead
+            # of calling .wait() afterward (matching the real Node.js usage
+            # pattern -- no separate .wait() call at all). This method
+            # remains correct and necessary for real distributed jobs via
+            # exec()/aio.exec(), where 'complete' genuinely arrives later,
+            # well after this registration.
             return dry.aio.blockify(self._wait)()
 
         def on(self, *args):
