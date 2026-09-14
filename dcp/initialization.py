@@ -15,6 +15,7 @@ import pythonmonkey as pm
 from .dry import class_manager, aio
 from . import js
 from . import api
+from ._pm_evaluator import evaluator as _pm_evaluator_module
 
 # state
 INIT_MEMO = None
@@ -92,6 +93,17 @@ def make_init_fn(dcp_module) -> Callable:
         # no-op on multiple initializations
         if INIT_MEMO is not None:
             return INIT_MEMO
+
+        # Makes pythonmonkey a real dcp-client platform: registers
+        # globalThis.__pmEvaluatorCtor, the SandboxConstructor localExec()
+        # uses (a real separate child process per job, not an in-process
+        # simulation -- see PYTHONMONKEY_EVALUATOR_PLAN.md for the full
+        # architecture). Must run BEFORE dcp-client's own init below --
+        # preserved out of caution, matching an ordering requirement the
+        # previous in-process-simulation prototype needed; not yet
+        # independently reconfirmed as still required for this
+        # separate-process version specifically.
+        _pm_evaluator_module.install(aio.loop)
 
         # initialize dcp
         js.dcp_client['init'](**kwargs)
