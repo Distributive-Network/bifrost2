@@ -1,16 +1,7 @@
 """
 Entry point for the separate-process pythonmonkey evaluator's child side.
 Invoked as: python <this file> --port <N>   (direct script path, NOT
-`-m dcp._pm_evaluator.child` -- see channel.py's comment on _CHILD_SCRIPT
-for why: `-m` forces importing the whole `dcp` package first, which this
-process does not need and which was confirmed to slow/complicate startup).
-
-STAGE 2 (current): adds a real pythonmonkey instance and wires writeln/
-onreadln/die to the real socket, matching the wire protocol StandaloneWorker
-(dcp-client's lib/standaloneWorker.js) expects on its read side. Does NOT
-yet run the 22-file sandbox bootstrap -- that's the next stage, added only
-once this stage is confirmed working (pythonmonkey starts reliably in a
-spawned subprocess, and the writeln/onreadln bridge works end to end).
+`-m dcp._pm_evaluator.child` -- see channel.py's comment on _CHILD_SCRIPT).
 """
 import argparse
 import asyncio
@@ -22,9 +13,8 @@ import threading
 
 
 def _bootstrap_files():
-    """Portable resolution of the 22 sandbox control-code files -- NOT the
-    hardcoded C:\\Users\\danie\\AppData\\... paths pm_localexec_setup.py
-    used. Resolved relative to wherever `dcp` is actually installed."""
+    """Resolved relative to the installed `dcp` package, not a hardcoded path,
+    since this runs as a standalone child process that may live anywhere."""
     spec = importlib.util.find_spec("dcp")
     dcp_dir = os.path.dirname(spec.origin)
     js_root = os.path.join(dcp_dir, "js", "node_modules")
@@ -75,24 +65,71 @@ def main():
         except OSError:
             pass
 
-    pm.globalThis["__pmChildWriteLine"] = _write_line
+    # access-lists.js masks every *configurable* global not on its allowlist
+    # (see below) -- including our own bridge functions, since a real Node
+    # sandbox never has extras like these to mask. Non-configurable is the
+    # escape hatch its own masking code already checks for.
+    def _define_protected_global(name, value):
+        pm.globalThis[name] = value
+        pm.eval(f"""
+        Object.defineProperty(globalThis, {name!r}, {{
+          value: globalThis[{name!r}],
+          writable: true,
+          configurable: false,
+          enumerable: false,
+        }});
+        """)
 
-    # Same writeln contract as the real sandbox control-code files expect
-    # (see pm_localexec_setup.py's install(), which this mirrors) -- but
-    # now genuinely writing to a real socket instead of fake in-process
-    # dispatch.
+    _define_protected_global("__pmChildWriteLine", _write_line)
+
+    # url.js only reads globalThis.location on engines that already have a
+    # native URL (pythonmonkey does; Node's bare sandbox doesn't, so it never
+    # hits this branch there). Nothing else in this pipeline sets `location`.
+    pm.eval("globalThis.location = new URL('file:///');")
+
+    should_exit = threading.Event()
+
+    def _die():
+        # Tell the parent we're dying, then actually stop this process --
+        # writing the socket line alone doesn't end the event loop.
+        _write_line("DIE:")
+        should_exit.set()
+
+    _define_protected_global("__pmChildDie", _die)
+
+    # The parent sends 'describe' the instant the socket connects, before
+    # this process has even started its bootstrap -- and the handler that
+    # answers it (calculate-capabilities.js) isn't registered until file #21
+    # of 22. Node's real evaluator avoids this because it runs its whole
+    # bootstrap before ever reading its input stream, so early messages just
+    # sit in the OS pipe buffer. We read eagerly instead, so anything that
+    # arrives before the bootstrap fully finishes must be buffered and
+    # replayed afterward (_flush_pending, called from _wait_for_exit below).
+    _pending_lines = []
+    _bootstrap_done = threading.Event()
+
     pm.eval("""
     globalThis.writeln = function(line) {
       globalThis.__pmChildWriteLine(line);
     };
-    globalThis.__pmOnReadlnHandler = null;
+    // Same non-configurable protection as the bridge globals above --
+    // access-lists.js would otherwise mask this too. Stays writable so
+    // onreadln() can keep reassigning it.
+    Object.defineProperty(globalThis, '__pmOnReadlnHandler', {
+      value: null,
+      writable: true,
+      configurable: false,
+      enumerable: false,
+    });
     globalThis.onreadln = function(fn) { globalThis.__pmOnReadlnHandler = fn; };
-    globalThis.die = function() { globalThis.__pmChildWriteLine('DIE:'); };
+    globalThis.die = function() { globalThis.__pmChildDie(); };
     """)
 
-    should_exit = threading.Event()
-
     def _socket_reader():
+        # The wire protocol is asymmetric: LOG:/DIE:/MSG: prefixes are only
+        # used in the child->parent direction (sa-ww-simulation.js's send()).
+        # The parent always writes bare JSON, so every line here goes
+        # straight to the onreadln handler with no prefix routing.
         buf = b""
         while True:
             try:
@@ -105,32 +142,37 @@ def main():
             while b"\n" in buf:
                 raw, buf = buf.split(b"\n", 1)
                 text = raw.decode("utf-8", errors="replace")
-                if text.startswith("DIE:"):
-                    should_exit.set()
-                    return
-                elif text.startswith("MSG:"):
-                    loop.call_soon_threadsafe(_dispatch_incoming, text[4:])
+                if text:
+                    loop.call_soon_threadsafe(_dispatch_incoming, text)
         should_exit.set()
 
-    def _dispatch_incoming(json_text: str):
+    def _dispatch_incoming(line: str):
+        if not _bootstrap_done.is_set():
+            _pending_lines.append(line)
+            return
         handler = pm.eval("globalThis.__pmOnReadlnHandler")
-        if handler:
-            # onreadln handlers, per the real protocol, receive the RAW
-            # "MSG:<json>\n" line, not the decoded payload -- matches
-            # pm_localexec_setup.py's writeln() parsing the raw line itself.
-            handler("MSG:" + json_text + "\n")
+        # pm.eval("null") returns the `pythonmonkey.null` type itself, which
+        # is truthy like any class -- `if handler:` alone can't tell "no
+        # handler yet" from a real one, and calling the type raises instead.
+        if handler and handler is not pm.null:
+            handler(line)
+        else:
+            _pending_lines.append(line)
+
+    def _flush_pending():
+        # Runs once the bootstrap is fully done, so every listener
+        # (including calculate-capabilities.js's) is registered.
+        _bootstrap_done.set()
+        handler = pm.eval("globalThis.__pmOnReadlnHandler")
+        if handler and handler is not pm.null:
+            while _pending_lines:
+                handler(_pending_lines.pop(0))
 
     reader_thread = threading.Thread(target=_socket_reader, daemon=True)
     reader_thread.start()
 
     _write_line("LOG:pm evaluator child: pythonmonkey ready, pid=%d" % __import__("os").getpid())
 
-    # STAGE 3: run the real 22-file sandbox bootstrap, in TRUE isolation --
-    # this process's JS global is used for NOTHING else (no shared
-    # "Supervisor" role), so console/require/timer clobbering and
-    # access-lists masking should not be able to break anything else the
-    # way they did in the old in-process simulation. Verifying that
-    # empirically here, not assuming it.
     async def _run_bootstrap():
         for f in _bootstrap_files():
             _write_line(f"LOG:[bootstrap] loading {f}")
@@ -150,15 +192,18 @@ def main():
         sock.close()
         sys.exit(1)
 
-    # Confirm writeln/onreadln/die are still OUR functions after the
-    # bootstrap ran (i.e. nothing in the 22 files redefined them out from
-    # under us) -- this is exactly the kind of clobbering that broke the
-    # in-process simulation; check it explicitly rather than assume
-    # isolation fixed it.
+    # sa-ww-simulation.js deletes its own writeln/onreadln/die once captured
+    # privately -- expected to read False here, not a clobbering bug.
     still_ours = pm.eval("typeof globalThis.writeln === 'function' && typeof globalThis.onreadln === 'function'")
     _write_line(f"LOG:writeln/onreadln still intact after bootstrap: {still_ours}")
 
     async def _wait_for_exit():
+        # Must run inside this active loop, not in the synchronous gap
+        # before it: calculate-capabilities.js's 'describe' handler is
+        # async and needs pythonmonkey's Python/JS event-loop bridge
+        # (PyEventLoop::getRunningLoop()), which only finds a loop that is
+        # actually running on this thread right now.
+        _flush_pending()
         while not should_exit.is_set():
             await asyncio.sleep(0.05)
 

@@ -2,17 +2,13 @@
 Parent-side channel: spawns the child evaluator process, listens for its
 connection, and bridges line-based traffic to/from it.
 
-Uses a background thread with plain blocking sockets, NOT asyncio streams
--- bifrost2's shared loop (dry.aio.loop) has nest_asyncio applied for
-pythonmonkey's reentrant event-loop needs, and nest_asyncio's patched loop
-was confirmed (empirically, via a real hang with no exception) to break
-plain asyncio task/timeout scheduling in ways not worth fighting. A
-background thread reading a blocking socket sidesteps that entirely; each
-received line is handed back to the main loop/thread via
-loop.call_soon_threadsafe(), which is the same safe cross-thread pattern
-pythonmonkey's own C++ side uses to reach the event loop (see JobQueue.cc's
-dispatchToEventLoop in the pythonmonkey-src rebuild this session).
+Uses a background thread with plain blocking sockets, not asyncio streams:
+bifrost2's shared loop has nest_asyncio applied (for pythonmonkey's
+reentrant event-loop needs), which silently breaks asyncio task/timeout
+scheduling. A thread reading a blocking socket sidesteps that; each line
+is handed to the main loop via loop.call_soon_threadsafe().
 """
+import json
 import os
 import socket
 import subprocess
@@ -78,7 +74,8 @@ class EvaluatorChannel:
             pass
 
     def terminate(self):
-        self.write_line("DIE:")
+        # Bare JSON, not a "DIE:" line -- see child.py's _socket_reader.
+        self.write_line(json.dumps({"type": "die"}))
         self._stop = True
         if self.proc:
             try:

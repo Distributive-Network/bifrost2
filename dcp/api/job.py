@@ -27,6 +27,14 @@ from types import FunctionType
 import urllib
 from .pyodide_work_function import get_work_function_string
 
+def _clean_js_error_message(e):
+    """The real traceback pointing at the user's own work function is on
+    e.jsError.message; str(e) alone is buried under dcp-client's internal
+    JS stack frames."""
+    js_error = getattr(e, 'jsError', None)
+    message = getattr(js_error, 'message', None) if js_error is not None else None
+    return message or str(e)
+
 def job_maker(super_class):
     class Job(super_class):
         def __init__(self, job_js):
@@ -314,18 +322,10 @@ def job_maker(super_class):
             a separate `.wait()` call afterward -- see wait()'s own note
             for why calling .wait() after .localExec() doesn't work anyway.
 
-            NEEDS TESTING once services are back up (see
-            PYTHONMONKEY_EVALUATOR_PLAN.md sec6): whether
-            force_job_completion_when_done()/raise_on_first_work_error()'s
-            concerns (local Worker never signaling a terminating 'stop';
-            work-function errors getting swallowed) still apply under the
-            new separate-process evaluator, or whether a real child process
-            now surfaces these correctly on its own via
-            StandaloneWorker-compatible 'result'/error messages. Not yet
-            ported here pending that verification -- porting them
-            unconditionally without checking would risk reintroducing
-            exactly the kind of unverified, "looks done but isn't" change
-            this whole rework exists to avoid.
+            force_job_completion_when_done()'s concern (the local Worker
+            never signaling a terminating 'stop') did not need porting --
+            confirmed by testing, the real evaluator's Sandbox/Worker
+            machinery completes jobs correctly on its own.
             """
             self._before_exec()
             self._wrapper_set_attribute("_exec_called", True)
@@ -337,19 +337,7 @@ def job_maker(super_class):
                 try:
                     ret_val = dry.aio.blockify(self.js_ref.localExec)(*args, **kwargs)
                 except Exception as e:
-                    # The real error message (a genuine Python traceback
-                    # pointing at the user's own work function) is already
-                    # present on e.jsError.message -- pythonmonkey.SpiderMonkeyError
-                    # exposes the underlying JS Error as .jsError. Without
-                    # this, the caller sees a SpiderMonkeyError whose
-                    # message is buried under dcp-client's own internal JS
-                    # stack frames. Re-raise with just the real message so
-                    # job.localExec() fails pointing at the user's own code.
-                    js_error = getattr(e, 'jsError', None)
-                    message = getattr(js_error, 'message', None) if js_error is not None else None
-                    if message:
-                        raise RuntimeError(message) from None
-                    raise
+                    raise RuntimeError(_clean_js_error_message(e)) from None
             finally:
                 # These files hold real job argument/slice-value data
                 # (potentially sensitive) and are not otherwise cleaned up.
@@ -371,7 +359,16 @@ def job_maker(super_class):
             # exactly like _wait()'s handle_complete does.
             to_array = pm.eval("(rh) => Array.from(rh)")
             raw_values = to_array(ret_val)
-            return [deserialize(v, self.serializers) for v in raw_values]
+            results = [deserialize(v, self.serializers) for v in raw_values]
+
+            # A slice whose work function raised resolves normally here --
+            # the exception lands as a value in `results`, not a rejection
+            # of the promise above -- so it has to be checked explicitly.
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise RuntimeError(_clean_js_error_message(result)) from None
+
+            return results
 
         def on(self, *args):
             # deserialize job on event parameters before passing them to user defined callback

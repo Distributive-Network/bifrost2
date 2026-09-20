@@ -1,8 +1,6 @@
 """
-STAGE 1 smoke test: proves spawn+socket-connect+message-exchange+terminate
-works at all on this machine, with zero pythonmonkey/bifrost2 involvement --
-isolates subprocess/socket mechanics from everything else before adding
-that complexity on top.
+Smoke test: spawn+socket-connect+message-exchange+terminate against the
+real child.py. For a more thorough bootstrap check, see _test_bootstrap.py.
 
 Run directly: python -m dcp._pm_evaluator._test_plumbing
 """
@@ -27,16 +25,22 @@ async def main():
     channel.spawn_and_connect()
     print(f"[parent] child connected in {time.time()-t0:.2f}s, pid=", channel.proc.pid, flush=True)
 
-    channel.write_line('MSG:{"type":"workerMessage","message":"hello from parent"}')
+    # No onreadln handler exists yet at this point in the bootstrap, so this
+    # is a no-op -- it only exercises the plumbing, not message dispatch.
+    # Bare JSON, no "MSG:" prefix (see child.py's _socket_reader).
+    channel.write_line('{"type":"workerMessage","message":"hello from parent"}')
 
-    await asyncio.sleep(2.0)
+    await asyncio.sleep(5.0)
 
     channel.terminate()
     await asyncio.sleep(0.5)
 
     assert any("pythonmonkey ready" in l for l in lines_received), "child pythonmonkey did not start"
-    assert any("child JS onreadln got" in l for l in lines_received), "child's real pythonmonkey JS did not receive our message via onreadln"
-    print("STAGE 2 PLUMBING TEST PASSED (real pythonmonkey in child, real socket round-trip)")
+    assert any("[bootstrap] all 22 files loaded successfully" in l for l in lines_received), "child did not finish loading the sandbox bootstrap"
+    # False is correct: sa-ww-simulation.js deletes these once captured
+    # privately (deliberate cleanup, not a clobbering bug).
+    assert any("writeln/onreadln still intact after bootstrap: False" in l for l in lines_received), "expected writeln/onreadln removed post-bootstrap; got True"
+    print("PLUMBING TEST PASSED (real pythonmonkey in child, full sandbox bootstrap, real socket round-trip)")
 
 
 if __name__ == "__main__":

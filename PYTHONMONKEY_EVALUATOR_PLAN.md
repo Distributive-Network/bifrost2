@@ -349,84 +349,180 @@ With DCP services down (planned outage, sec5c), continued with code-only work th
 6. If a job with more than a handful of slices, or a job that legitimately takes a while, hangs after all real results have arrived: that's confirmation `force_job_completion_when_done`'s concern is still needed too (port from lines 832-928).
 7. Once real end-to-end success is confirmed (including error propagation): retest `pycomod_localexec_test.py` (heavier stress test) per sec6 step 6, then prepare the real PRs per sec6 step 7 -- monorepo MR (the `pythonmonkeyEvaluatorFactory()` + platform-gate change, sec4 item 1) and the bifrost2 PR (this branch), with a proper handoff doc.
 
+## 5f. RESOLVED: real end-to-end success, six real bugs found and fixed
+
+Services came back up (planned outage ended). Picked up exactly per sec5e's
+sequence. **The target API shape from sec1 now works, end to end, with
+zero manual patch wiring**, for both the simple job and the heavy pycomod
+one -- confirmed by directly running `dcp_local_job_test_no_timer_hacks.py`
+-style and a new `pycomod/pycomod_localexec_test_CLEAN.py` (identical to
+the old hacky version, minus every `pm_localexec_setup` import/call).
+Both printed correct results (`YELLING!`; pycomod's `values[:5] = [25. 25.
+25. 25. 25.]`, `dtype=float32`, matching the old hacky version's output
+exactly) with `results = job.localExec()` as the only line differing from
+`job.exec()`/`job.wait()`.
+
+Getting there required finding and fixing **six real, previously-unknown
+bugs** -- this section exists so nobody re-derives them from scratch. Each
+was confirmed by testing, not guessed:
+
+1. **`url.js`'s `Invalid scheme` crash.** `url.js` does `if (typeof URL
+   === 'undefined') { <polyfill from scratch> } else if (!('searchParams'
+   in new URL(globalThis.location))) {...}`. Node's real sandbox
+   (`evaluator-node.js`) runs inside a bare `vm.createContext({...})` with
+   no native `URL` at all, so it always takes the first branch and never
+   touches `location`. pythonmonkey ships its own native/polyfilled `URL`
+   (visible in the crash's own stack trace, `.../pythonmonkey/node_modules/
+   core-js/...`), so this child takes the second branch -- and nothing
+   anywhere in this pipeline ever sets `globalThis.location` for a
+   non-browser platform. Fixed in `child.py`: seed a placeholder
+   (`new URL('file:///')`) before the bootstrap runs.
+2. **`pythonmonkey.null` is truthy in Python.** `pm.eval("null")` returns
+   the `pythonmonkey.null` *class* itself, not an instance -- truthy like
+   any class. `if handler:` alone doesn't detect "no handler registered
+   yet"; a message arriving before one exists tried to *call* the class,
+   raising `TypeError: cannot create 'pythonmonkey.null' instances`. Fixed:
+   explicitly check `handler is not pm.null` too.
+3. **The wire protocol is asymmetric, not symmetric.** Confirmed against
+   the real source (`lib/standaloneWorker.js`'s `postMessage`/`terminate`,
+   `sandbox/sa-ww-simulation.js`'s `receiveLine`): `LOG:`/`DIE:`/`MSG:`
+   prefixes exist *only* in the child-to-parent direction. Parent-to-child
+   traffic is bare JSON, no prefix. This file's original design assumed
+   symmetry in three places, each fixed: `evaluator.py`'s `postMessage`
+   (dropped the stray `'MSG:'` prefix it was prepending), `channel.py`'s
+   `terminate()` (sends real `{"type":"die"}` JSON, not a literal `"DIE:"`
+   string), and `child.py`'s `_socket_reader`/`_dispatch_incoming` (every
+   parent-to-child line is bare JSON for the handler, no prefix routing).
+4. **A real race: `describe` arrives before the child can handle it, and
+   is lost, not delayed.** `Sandbox.start()` calls `describe()`
+   immediately after constructing the evaluator -- before the child has
+   even started its 22-file bootstrap. Node's real evaluator never hits
+   this: it runs its *entire* bootstrap synchronously before ever calling
+   `inputStream.on('data', ...)`, so anything sent early just sits in the
+   OS pipe's receive buffer, unread, until every file (including the one
+   that answers `describe`) has registered its listeners. This child
+   starts actively reading and dispatching *before* the bootstrap begins.
+   First fix attempt (replay once the low-level `onreadln` handler
+   registers, at bootstrap file #2 of 22) was necessary but not
+   sufficient -- the actual `describe` handler lives in
+   `calculate-capabilities.js`, file #21 of 22, so the message was still
+   lost. Real fix: buffer *every* incoming line unconditionally until the
+   *whole* bootstrap finishes, then replay all of them in order.
+5. **Replaying that buffer has to happen inside an actively-running Python
+   event loop.** `calculate-capabilities.js`'s real `describe` handler is
+   `async (event) => { ... await protectedStorage.webGPUInitialization();
+   ... }` -- it needs pythonmonkey's Python/JS event-loop bridge
+   (`PyEventLoop::getRunningLoop()`, the exact mechanism PythonMonkey PR
+   #509 patched). That bridge requires a loop that is *actually running on
+   this thread right now* -- false in the gap between two
+   `run_until_complete()` calls. Fixed by moving the buffered-message
+   replay into `_wait_for_exit()`, which the final `run_until_complete()`
+   actually drives, instead of calling it in the synchronous gap before
+   that call starts.
+6. **`access-lists.js` masks our own wire-protocol bridge globals as
+   "unsafe."** `applyAllAccessLists()` (triggered by the real
+   `applyRequirements` message, after bootstrap) walks every property on
+   `globalThis` and masks any *configurable* one not on its allowlist,
+   turning it into an accessor that returns `undefined` until something
+   sets it. Node's real sandbox never has this problem -- its
+   `sandboxGlobal` is a bare object with only the specific properties it
+   explicitly assigns, so there's nothing extra to mask. This child adds
+   its own bridge functions (`__pmChildWriteLine`, `__pmOnReadlnHandler`,
+   `__pmChildDie`) directly onto the *same* `globalThis` the sandbox code
+   enumerates, so access-lists.js masked them right along with everything
+   else -- confirmed via an exact crash: masking `__pmChildWriteLine`
+   broke the very next `writeln()` call (the success-acknowledgment for
+   the `applyRequirements` message itself). Fixed using
+   `applyAccessLists()`'s own built-in escape hatch: it skips any property
+   where `Object.getOwnPropertyDescriptor(obj, prop)?.configurable` is
+   false. Defined all three bridge globals as non-configurable (still
+   writable, so `__pmOnReadlnHandler` can still be reassigned).
+
+**Also corrected**: this document's own rationale ("matches how Node.js's
+`localExec()` actually works -- spawns a separate OS process") was
+factually wrong. `node-localExec.js` shows Node's real `localExec()` uses
+a same-process, pipe-connected worker (`standaloneWorker.js`'s
+`workerFactory`), not a spawned child process. This doesn't change the
+architecture decision here -- a genuinely separate process is *more*
+isolated, which is the property that actually matters (no shared global,
+period) -- but the doc should say that instead of the incorrect "matches
+Node" claim.
+
+**Category A/B status**: `force_job_completion_when_done` did not need
+porting -- confirmed, the real evaluator's `Sandbox`/`DistributiveWorker`
+machinery completes jobs correctly on its own.
+
+`raise_on_first_work_error`'s concern was **real and confirmed present**,
+deliberately tested with two work functions designed to fail (all slices
+raise; one of several slices raises). In both cases `job.localExec()`
+returned *normally* -- the raised exception landed as a `SpiderMonkeyError`
+value inside the `results` list (at the correct index; unlike the old
+in-process design, indexing was not misaligned) instead of failing the
+call. A caller doing `''.join(results)` would hit a confusing `TypeError`
+and never see the real bug.
+
+**Fixed** in `job.py`: `localExec()` now checks each deserialized result
+for `isinstance(result, BaseException)` and raises a clean `RuntimeError`
+using the same `.jsError.message` extraction the rejection-path handler
+already used (factored into a shared `_clean_js_error_message()` helper).
+Verified: both failing cases now raise `RuntimeError` with just the real
+traceback (`File "<string>", line N, in work_function` / the actual
+exception) -- no dcp-client-bundle.js stack noise. Both passing tests
+(simple + heavy) re-verified with no regression. Test scripts:
+`C:\Users\danie\DCP\test_error_all_slices_raise.py`,
+`C:\Users\danie\DCP\test_error_one_slice_raises.py`.
+
+**Two things this session did NOT do**, still open:
+- **The real dcp monorepo platform-gate fix** (sec4 item 1, sec6 step 4).
+  Both successful runs went through `site-packages`' `dcp-client` bundle,
+  which already carries an old hand-patch from the original investigation
+  letting `pythonmonkey` through `job/index.js`'s platform check. The real
+  monorepo source (confirmed identical on `develop` and on
+  `pythonmonkey-websocket-transport`) still hard-throws `'localExec is not
+  supported on this platform'` for `dcpEnv.platform === 'pythonmonkey'`. A
+  fresh, unpatched `dcp-client` install would still fail. The fix itself
+  is narrow and already scoped: widen the check at `job/index.js` line
+  644-645, add a `pythonmonkey` branch to the `SandboxConstructor` ternary
+  at 647-649 (a small `pythonmonkeyEvaluatorFactory()` returning
+  `globalThis.__pmEvaluatorCtor`, exported from `worker/evaluators/
+  index.js`), and *deliberately leave* the `if (dcpEnv.platform ===
+  'nodejs')` local-file-marshaling block (696-800) untouched -- `job.py`'s
+  `_route_arguments_locally`/`_grant_local_file_origins` already replicate
+  its effect from the Python side, and that block depends on real Node
+  `fs`/`tmpfiles` pythonmonkey's `require()` doesn't provide.
+- **Committing/pushing this work.** Everything above is still uncommitted
+  working-tree edits on this branch (`pythonmonkey-platform-support`).
+
 ## 6. Remaining steps, in order
 
-1. **Build the real child process** (`child.py` stage 2). Replace the
-   stage-1 stub with: import `pythonmonkey`, resolve the dcp-client
-   bootstrap-file paths *portably* (not the hardcoded
-   `C:\Users\danie\AppData\Roaming\...` paths `pm_localexec_setup.py`
-   uses — resolve relative to the installed `dcp` package's own location,
-   e.g. via `importlib.util.find_spec('dcp')`), run the same
-   `BOOTSTRAP_FILES` list (copy the list from
-   `pm_localexec_setup.py` lines 25-48, fix the paths), wire real
-   `writeln`/`onreadln`/`die` globals to the actual socket (write out
-   `LOG:`/`MSG:` lines instead of in-process dispatch; feed incoming
-   socket lines to whatever `onreadln` registered). Test whether this
-   genuinely-isolated bootstrap needs ANY of Category A's fixes — don't
-   assume it doesn't just because the global is no longer shared; test it.
-2. **Build the JS-side evaluator constructor** (parent, in bifrost2,
-   injected via `pm.eval()` the same way `pm_localexec_setup.py` did) that
-   wraps `EvaluatorChannel`: `postMessage()` writes a `MSG:` line via a
-   Python bridge function exposed on `globalThis`; incoming lines
-   (delivered via `channel.on_line`, called on the main loop thanks to
-   `call_soon_threadsafe`) get parsed and dispatched to `onmessage`/
-   `onerror`, matching `Sandbox.start()`'s expected contract exactly (same
-   shape as the existing, proven `__pmEvaluatorCtor` in
-   `pm_localexec_setup.py` lines 112-193 — reuse that shape, just change
-   the internals to talk to a real channel instead of fake dispatch).
-   Since spawning is not instant, buffer any `postMessage()` calls issued
-   before the channel finishes connecting (same pattern already proven in
-   `WebSocket.js`'s constructor this session — buffer-then-flush on
-   connect).
-3. **Test the JS↔Python bridge directly** against the stage-2 child,
-   without going through real `Sandbox.start()`/dcp-client yet — construct
-   the evaluator directly via `pm.eval()`, call `postMessage`, confirm
-   `onmessage` fires with real data from the child's actual pythonmonkey
-   instance.
-4. **Monorepo changes** (`C:\Users\danie\DCP\dcp-monorepo`, need a fresh
-   feature branch off `develop`):
-   - `src/dcp-client/job/index.js` ~line 645: accept `"pythonmonkey"`
-     platform (§4 item 1 above).
-   - New file, modeled on `src/dcp-client/worker/evaluators/node-localExec.js`:
-     a `pythonmonkeyEvaluatorFactory()` — but note, unlike Node's version,
-     this doesn't need to do the spawning itself (that's already handled
-     Python-side via `globalThis.__pmEvaluatorCtor`, exactly like the
-     existing FIXES_SUMMARY.md §3.1 diff already established) — likely a
-     much smaller file than `node-localExec.js`, just returning
-     `globalThis.__pmEvaluatorCtor`.
-   - Investigate/implement the `"complete"`/`"workError"` signal question
-     from §4 Category B — determine whether `Sandbox.start()`'s existing
-     onmessage handling (feeding into `StandaloneWorker`'s already-correct
-     `'result'`/error dispatch) is now sufent once real socket messages are
-     flowing, or whether the two bespoke hooks (§4 item 3) are still
-     needed.
-5. **bifrost2 changes**:
-   - `dcp/initialization.py`: call the new evaluator-registration code
-     automatically in `init()`, before `js.dcp_client['init'](**kwargs)`
-     runs (ordering matters — confirmed by the original investigation).
-     Only port whatever Category A fixes step 1's testing showed are still
-     genuinely needed.
-   - `dcp/api/job.py`: rewrite `localExec()` cleanly, folding in whatever
-     Category B fixes are still needed after step 4's investigation
-     (route-arguments-locally at minimum; completion/error detection only
-     if still needed after checking `StandaloneWorker`'s existing handling).
-6. **End-to-end test** against a real job. Use
-   `C:\Users\danie\DCP\dcp_local_job_test.py` as the reference test job
-   (uppercase-8-letters, Pyodide work function, `demo`/`dcp` compute
-   group) — but the goal is for the **exact clean script in §1** to work,
-   not a script with any manual patch wiring. Also retest
-   `pycomod_localexec_test.py` (heavier stress test — filesystem shipping,
-   extra Pyodide modules, cloudpickle round-trip) once the basic case
-   works.
-7. **Only once real, end-to-end, tested** — prepare PRs:
-   - dcp monorepo MR (step 4's changes)
-   - bifrost2 PR (step 5's changes) — this is the real replacement for the
-     closed PR #49; make sure it's actually complete and tested this time,
-     not another partial cut.
-   - Write a handoff doc (matching the pattern of
-     `SPIDERMONKEY_VERSION_BUMP.md`/`LOCALEXEC_PYODIDE_FIX_NOTES.md`)
-     covering the full architecture, what was tested, what's flagged as
-     needing review.
+Steps 1-3 and 6 below are **done** as of sec5f (real child process, real
+JS-side evaluator constructor, real JS↔Python bridge, real end-to-end test
+against both the simple and heavy jobs, both passing). What's left:
+
+1. **Monorepo changes** (`C:\Users\danie\DCP\dcp-monorepo`, need a fresh
+   feature branch off `develop`) -- the one piece that's still simulated
+   via an old hand-patched `site-packages` bundle rather than the real
+   source:
+   - `src/dcp-client/job/index.js` line 644-645: widen the platform check
+     to also accept `dcpEnv.platform === 'pythonmonkey'`.
+   - Line 647-649: add a `pythonmonkey` branch to the `SandboxConstructor`
+     ternary. New file, modeled on `worker/evaluators/node-localExec.js`
+     but much smaller: a `pythonmonkeyEvaluatorFactory()` that just returns
+     `globalThis.__pmEvaluatorCtor` (the spawning is already fully handled
+     Python-side). Export it from `worker/evaluators/index.js`.
+   - Deliberately leave the `if (dcpEnv.platform === 'nodejs')` block
+     (696-800) untouched -- see sec5f for why.
+   - Re-run both end-to-end tests against a fresh, unpatched `dcp-client`
+     install (not the hand-patched `site-packages` copy) to confirm the
+     real fix, not the old hand-patch, is what makes this work.
+2. ~~Spot-check `raise_on_first_work_error`'s concern~~ -- **done** (sec5f):
+   found real, fixed in `job.py`, verified.
+3. **Commit and push.** Everything in sec5f is still uncommitted
+   working-tree edits on this branch. Write a handoff doc (matching
+   `SPIDERMONKEY_VERSION_BUMP.md`'s pattern) covering the architecture,
+   the six bugs, what was tested, what's flagged as needing review
+   (`raise_on_first_work_error`, above). Open the bifrost2 PR (the real
+   replacement for closed PR #49) and, once step 1 lands, the monorepo MR.
 
 ---
 

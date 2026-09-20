@@ -59,7 +59,9 @@ _ctor_factory = pm.eval("""
     }
 
     this.postMessage = function(msg) {
-      var line = 'MSG:' + JSON.stringify({ type: 'workerMessage', message: msg });
+      // No LOG:/DIE:/MSG: prefix here -- those only apply child->parent
+      // (see handleLine above). The parent always writes bare JSON.
+      var line = JSON.stringify({ type: 'workerMessage', message: msg });
       if (channelWrite) channelWrite(line);
       else sendBuffer.push(line);
     };
@@ -88,11 +90,8 @@ _ctor_factory = pm.eval("""
 
 
 def install(loop: asyncio.AbstractEventLoop):
-    """Registers globalThis.__pmEvaluatorCtor, backed by real child
-    processes. Call once, before dcp-client's own init runs (matching the
-    ordering the original in-process version required -- unverified
-    whether that ordering constraint still applies here, but preserved
-    out of caution until tested otherwise)."""
+    """Registers globalThis.__pmEvaluatorCtor. Call before dcp-client's own
+    init runs, so it's available by the time a job needs it."""
 
     async def _spawn_and_get_handle(on_line_js_callback):
         channel = EvaluatorChannel(loop)
