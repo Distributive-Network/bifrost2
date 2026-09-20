@@ -98,11 +98,14 @@ def make_init_fn(dcp_module) -> Callable:
         # globalThis.__pmEvaluatorCtor, the SandboxConstructor localExec()
         # uses (a real separate child process per job, not an in-process
         # simulation -- see PYTHONMONKEY_EVALUATOR_PLAN.md for the full
-        # architecture). Must run BEFORE dcp-client's own init below --
-        # preserved out of caution, matching an ordering requirement the
-        # previous in-process-simulation prototype needed; not yet
-        # independently reconfirmed as still required for this
-        # separate-process version specifically.
+        # architecture, prerequisites, and known bugs). Must run BEFORE
+        # dcp-client's own init below -- preserved out of caution, matching
+        # an ordering requirement the previous in-process-simulation
+        # prototype needed; not yet independently reconfirmed as still
+        # required for this separate-process version specifically.
+        #
+        # REQUIRES PythonMonkey PR #509 installed first -- jobs hang, not
+        # error, without it. See PYTHONMONKEY_EVALUATOR_PLAN.md's top section.
         _pm_evaluator_module.install(aio.loop)
 
         # initialize dcp

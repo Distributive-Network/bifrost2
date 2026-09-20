@@ -9,6 +9,49 @@ works.
 
 ---
 
+## PREREQUISITE: this branch does not work with the pythonmonkey currently
+## on PyPI/npm/site-packages -- it requires PythonMonkey PR #509 installed
+## first, not just "eventually."
+
+https://github.com/Distributive-Network/PythonMonkey/pull/509
+
+Not optional, not a future nice-to-have -- confirmed by literally swapping
+the old `pythonmonkey.pyd` back in and testing:
+`pm.eval('typeof SharedArrayBuffer')` → `undefined` on the old build (was
+`'function'` on PR #509's build). Two separate, both-required reasons:
+
+1. **Pyodide's threaded WASM build cannot link without SharedArrayBuffer/
+   Atomics** ("LinkError: shared memory is disabled" otherwise) -- this is
+   unconditional for *any* Pyodide work function, regardless of anything in
+   this bifrost2 branch. PR #509 is what adds this.
+2. **The JobQueue rewrite that comes with PR #509's SpiderMonkey rebuild
+   needs its own checkpoint fixes to not hang** -- specifically the
+   `js::RunJobs(cx)` calls added in `JSFunctionProxy.cc`/`JSMethodProxy.cc`
+   (PR #509's most recent commit). Without them, the real evaluator's async
+   JS callbacks (e.g. `calculate-capabilities.js`'s `describe` handler)
+   hang forever, the exact same symptom class this whole session's work
+   here fixed on the bifrost2 side.
+
+**Checking out just this bifrost2 branch, on top of an unpatched
+pythonmonkey, will not produce a useful error -- it will hang.** Install
+the full current state of PR #509 first (build it, or get a build from
+whoever has one) before testing anything in this document.
+
+---
+
+## ALSO REQUIRED, NOT YET DONE: the dcp monorepo platform-gate change
+
+`src/dcp-client/job/index.js` still hard-throws `'localExec is not
+supported on this platform'` for `pythonmonkey` (line 644-645) in the real
+monorepo source. Every real end-to-end test in this document passed
+against `site-packages`'s `dcp-client` bundle, which carries an *old hand
+patch* from an earlier investigation working around this exact throw --
+not the real fix. See sec5f/sec6 below for the exact, narrow change needed
+(a few lines in `job/index.js` + one small new file). **Deliberately left
+undone in this branch** -- intended to be a separate monorepo MR.
+
+---
+
 ## 0. Why this document exists
 
 `job.localExec()` under pythonmonkey was gotten working during an earlier
