@@ -62,6 +62,9 @@ def job_maker(super_class):
             self._wrapper_set_attribute("fs", JobFS())
             self._wrapper_set_attribute("_exec_called", False)
             self._wrapper_set_attribute("_local_results", None)
+            self._wrapper_set_attribute("_local_result_nonce", None)
+            self._wrapper_set_attribute("_local_result_values", None)
+            self._wrapper_set_attribute("_local_result_server", None)
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
@@ -371,6 +374,125 @@ def job_maker(super_class):
 
             dry.aio.loop.call_later(poll_interval, _try_grant, max_attempts)
 
+        def _setup_local_result_storage(self):
+            """
+            localExec() otherwise routes each slice's *result* through the
+            real scheduler too, not just coordination: the local worker
+            POSTs the real computed value to the resultSubmitter service,
+            and the job receives it back via the scheduler's pubsub relay
+            -- the value itself leaves the machine, not just a completion
+            signal.
+
+            job.setResultStorage(url, postParams) is dcp-client's own
+            existing, public mechanism for redirecting a slice's result
+            upload to a self-hosted location instead of the scheduler's own
+            storage (normally S3, Dropbox, etc.) -- pointing it at a local
+            server keeps the real value on loopback, and the small
+            confirmation response our server sends back is all that
+            actually reaches the scheduler and comes back through the
+            unmodified pubsub path. This is exactly how that feature
+            already behaves for any other off-prem storage target, not a
+            special case invented for this.
+
+            Must run before the real JS localExec() call, same as
+            _route_arguments_locally() -- resultStorageDetails/Type/Params
+            are snapshotted into the deploy payload at the same time.
+
+            Returns the origin string _grant_send_results_origin needs.
+            """
+            import http.server
+            import socketserver
+            import threading
+            import secrets
+            import urllib.parse as _urlparse
+
+            nonce = secrets.token_hex(8)
+
+            # Stored as raw KVIN strings, not deserialized here -- see the
+            # comment at the substitution site in localExec() for why a
+            # plain JSON round trip loses type fidelity (a pickled/binary
+            # result, or a failed slice's error object, both need KVIN's
+            # richer encoding, the same one dcp-client's own default
+            # (non-redirected) result path already relies on).
+            local_values = {}
+
+            class _ResultHandler(http.server.BaseHTTPRequestHandler):
+                def do_POST(self):
+                    length = int(self.headers.get('Content-Length', 0))
+                    body = self.rfile.read(length).decode('utf-8')
+                    fields = _urlparse.parse_qs(body)
+                    element = int(fields['element'][0])
+                    local_values[element] = fields['content'][0]
+
+                    token = f"bifrost2-local-result:{nonce}:{element}".encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Content-Length", str(len(token)))
+                    self.end_headers()
+                    self.wfile.write(token)
+
+                def log_message(self, *args):
+                    pass
+
+            class _ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+                daemon_threads = True
+
+            server = _ThreadingHTTPServer(("127.0.0.1", 0), _ResultHandler)
+            port = server.server_port
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+
+            # contentType 'application/x-kvin' makes sendResultToRemote()
+            # use kvin.serialize() instead of JSON.stringify() -- KVIN
+            # faithfully round-trips typed arrays and real Error objects,
+            # which plain JSON would mangle or strip.
+            set_result_storage = pm.eval("""
+            (jobRef, port) => {
+              jobRef.setResultStorage(new URL('http://127.0.0.1:' + port + '/results'), {
+                elementType: 'results',
+                contentType: 'application/x-kvin',
+              });
+            }
+            """)
+            set_result_storage(self.js_ref, port)
+
+            self._wrapper_set_attribute("_local_result_nonce", nonce)
+            self._wrapper_set_attribute("_local_result_values", local_values)
+            self._wrapper_set_attribute("_local_result_server", server)
+
+            return f"http://127.0.0.1:{port}"
+
+        def _grant_send_results_origin(self, origin, poll_interval=0.05, max_attempts=200):
+            """
+            Same poll-for-originManager pattern as _grant_local_file_origins,
+            for the one origin _setup_local_result_storage's local server
+            needs -- sendResultToRemote() checks this before it will POST a
+            slice's result anywhere.
+            """
+            grant_origin = pm.eval("""
+            (originManager, origin) => {
+              originManager.add(origin, 'sendResults', null);
+            }
+            """)
+
+            def _try_grant(attempts_left):
+                try:
+                    worker = self.js_ref["localWorker"]
+                    if worker is None or isinstance(worker, pm.null.__class__):
+                        if attempts_left > 0:
+                            dry.aio.loop.call_later(poll_interval, _try_grant, attempts_left - 1)
+                        return
+                    origin_manager = worker["originManager"]
+                    if origin_manager is None or isinstance(origin_manager, pm.null.__class__):
+                        if attempts_left > 0:
+                            dry.aio.loop.call_later(poll_interval, _try_grant, attempts_left - 1)
+                        return
+                    grant_origin(origin_manager, origin)
+                except Exception:
+                    if attempts_left > 0:
+                        dry.aio.loop.call_later(poll_interval, _try_grant, attempts_left - 1)
+
+            dry.aio.loop.call_later(poll_interval, _try_grant, max_attempts)
+
         def localExec(self, *args, **kwargs):
             """
             localExec() was otherwise inherited unmodified from the generic
@@ -406,6 +528,9 @@ def job_maker(super_class):
             grants, written_paths = self._route_arguments_locally()
             self._grant_local_file_origins(grants)
 
+            result_storage_origin = self._setup_local_result_storage()
+            self._grant_send_results_origin(result_storage_origin)
+
             try:
                 try:
                     ret_val = dry.aio.blockify(self.js_ref.localExec)(*args, **kwargs)
@@ -422,6 +547,8 @@ def job_maker(super_class):
                         _os.unlink(path)
                     except OSError:
                         pass
+                self._local_result_server.shutdown()
+                self._local_result_server.server_close()
 
             # ret_val resolves to the job's ResultHandle -- a Proxy whose
             # get/has/ownKeys traps make pythonmonkey report
@@ -432,7 +559,29 @@ def job_maker(super_class):
             # exactly like _wait()'s handle_complete does.
             to_array = pm.eval("(rh) => Array.from(rh)")
             raw_values = to_array(ret_val)
-            results = [deserialize(v, self.serializers) for v in raw_values]
+
+            # Each raw value is normally just the small confirmation token
+            # our own local result-storage server returned -- see
+            # _setup_local_result_storage()'s docstring for why the real
+            # value never round-trips through the scheduler at all.
+            # Substitute the real value back in before deserializing, going
+            # through kvin.deserialize() (not plain JSON) so a failed
+            # slice's error object and a pickled/binary result cross into
+            # Python exactly as they would via the normal, non-redirected
+            # path -- a plain JSON round trip would strip an error object
+            # down to an inert dict and mangle binary data.
+            nonce = self._local_result_nonce
+            local_values = self._local_result_values
+            kvin_deserialize = pm.eval("(s) => require('kvin').deserialize(s)")
+            resolved_values = []
+            for i, v in enumerate(raw_values):
+                slice_number = i + 1
+                if v == f"bifrost2-local-result:{nonce}:{slice_number}":
+                    resolved_values.append(kvin_deserialize(local_values[slice_number]))
+                else:
+                    resolved_values.append(v)
+
+            results = [deserialize(v, self.serializers) for v in resolved_values]
 
             # A slice whose work function raised resolves normally here --
             # the exception lands as a value in `results`, not a rejection
