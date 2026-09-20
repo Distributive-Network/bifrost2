@@ -61,6 +61,7 @@ def job_maker(super_class):
             job_js.modules = [] #TODO: why is this only done this way for job modules?
             self._wrapper_set_attribute("fs", JobFS())
             self._wrapper_set_attribute("_exec_called", False)
+            self._wrapper_set_attribute("_local_results", None)
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
 
@@ -180,6 +181,20 @@ def job_maker(super_class):
         def _wait(self):
             if not self._exec_called:
                 raise Exception("Wait called before exec()")
+
+            # localExec() already ran the whole job to completion, 'complete'
+            # event included, before it returned (see its own docstring) --
+            # by the time wait() could register a listener the event has
+            # already fired and gone unheard (EventEmitters don't replay).
+            # Returning the results it already collected -- rather than
+            # trying to listen for an event that already happened -- is what
+            # lets `job.localExec(); results = job.wait()` mirror the real
+            # `job.exec(); results = job.wait()` pattern exactly.
+            if self._local_results is not None:
+                complete_future = asyncio.Future()
+                complete_future.set_result(self._local_results)
+                return complete_future
+
             complete_future = asyncio.Future()
             def handle_complete(resultHandle):
                 serialized_results = resultHandle["values"]()
@@ -198,19 +213,16 @@ def job_maker(super_class):
             return results
 
         def wait(self):
-            # NOTE: for a localExec() job, registering these listeners here
-            # is too late to ever see the 'complete' event -- the real JS
-            # localExec() Promise (awaited inside localExec() below) does
-            # not resolve until the WHOLE job (including the 'complete'
-            # event this function listens for) has already finished, so by
-            # the time _wait() runs, that event has already fired and been
-            # missed (EventEmitters don't replay past events to newly-added
-            # listeners). For localExec(), use its own return value instead
-            # of calling .wait() afterward (matching the real Node.js usage
-            # pattern -- no separate .wait() call at all). This method
-            # remains correct and necessary for real distributed jobs via
-            # exec()/aio.exec(), where 'complete' genuinely arrives later,
-            # well after this registration.
+            # For a localExec() job, the real JS localExec() Promise
+            # (awaited inside localExec() below) doesn't resolve until the
+            # WHOLE job -- 'complete' event included -- has already
+            # finished, so a *fresh* listener registered here would always
+            # miss it (EventEmitters don't replay past events). _wait()
+            # handles this by returning localExec()'s already-cached
+            # results instead of listening for an event that already fired.
+            # For real distributed jobs via exec()/aio.exec(), no such cache
+            # exists yet at this point, so this registers listeners and
+            # blocks for 'complete' normally.
             return dry.aio.blockify(self._wait)()
 
         def _route_arguments_locally(self):
@@ -332,10 +344,16 @@ def job_maker(super_class):
             registration) -- without it the raw user Python source is sent
             as-is, which never calls dcp.set_slice_handler() (->
             ENOSLICEHANDLER in the pyodide worktime). Mirrors _exec()'s
-            setup, matching the real Node.js usage pattern
-            (`const results = await job.localExec()`) instead of requiring
-            a separate `.wait()` call afterward -- see wait()'s own note
-            for why calling .wait() after .localExec() doesn't work anyway.
+            setup.
+
+            Works both as a single call (`results = job.localExec()`,
+            matching Node's own usage) and, since the results are cached on
+            the job once collected, as `job.localExec(); results =
+            job.wait()` -- matching `job.exec(); results = job.wait()`
+            exactly, so swapping exec for localExec never requires moving
+            where `results =` appears. See wait()'s own note for why a
+            *fresh* listener registered after the fact would otherwise miss
+            the 'complete' event.
 
             force_job_completion_when_done()'s concern (the local Worker
             never signaling a terminating 'stop') did not need porting --
@@ -385,6 +403,7 @@ def job_maker(super_class):
                 if isinstance(result, BaseException):
                     raise RuntimeError(_clean_js_error_message(result)) from None
 
+            self._wrapper_set_attribute("_local_results", results)
             return results
 
         def on(self, *args):
