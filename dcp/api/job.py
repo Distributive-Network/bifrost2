@@ -35,6 +35,21 @@ def _clean_js_error_message(e):
     message = getattr(js_error, 'message', None) if js_error is not None else None
     return message or str(e)
 
+def _check_localexec_pm_capability():
+    """localExec() runs the work function's pyodide sandbox in-process,
+    which needs SharedArrayBuffer/Atomics (PythonMonkey PR #509+) to link.
+    exec() never loads pyodide locally -- it only dispatches -- so this
+    check is scoped to localExec() rather than gating dcp.init() for
+    everyone. Fails fast with a clear error instead of the silent hang an
+    unpatched pythonmonkey produces deep inside sandbox startup."""
+    if pm.eval("typeof SharedArrayBuffer") == "undefined":
+        raise RuntimeError(
+            "job.localExec() requires a PythonMonkey build with "
+            "SharedArrayBuffer/Atomics support (PythonMonkey PR #509 or "
+            "later) -- the pythonmonkey installed here doesn't have it. "
+            "job.exec() is unaffected and works normally."
+        )
+
 def job_maker(super_class):
     class Job(super_class):
         def __init__(self, job_js):
@@ -327,6 +342,8 @@ def job_maker(super_class):
             confirmed by testing, the real evaluator's Sandbox/Worker
             machinery completes jobs correctly on its own.
             """
+            _check_localexec_pm_capability()
+
             self._before_exec()
             self._wrapper_set_attribute("_exec_called", True)
 
