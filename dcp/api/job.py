@@ -229,21 +229,27 @@ def job_maker(super_class):
             """
             localExec() otherwise unconditionally routes job data through
             the real scheduler: jobArguments once a payload exceeds a size
-            threshold (a scheduler-hosted URL), and slice *values* via a
+            threshold (a scheduler-hosted URL), slice *values* via a
             dedicated, unconditional bulk upload (addSlices(), during the
             "uploading" state) that runs regardless of size unless
-            jobRef.marshaledDataValues is already set. Real Node localExec()
-            avoids this entirely by writing both to local temp files and
-            granting the local worker a narrow, path-scoped file:// origin
-            per file instead -- this mirrors that.
+            jobRef.marshaledDataValues is already set, a range-shaped input
+            set (e.g. MultiRangeObject) inlined as-is in the deploy payload,
+            and the work function source embedded directly in
+            workFunctionURI as a data: URI. Real Node localExec() avoids all
+            of this by writing each to a local temp file and granting the
+            local worker a narrow, path-scoped file:// origin per file
+            instead -- this mirrors that for every case Node handles
+            (job/index.js's own platform-gated rewrite only runs for
+            'nodejs', so pythonmonkey needs its own copy).
 
             Must run SYNCHRONOUSLY, immediately after _before_exec()
-            populates jobArguments/jobInputData and before the real JS
-            localExec() call (and therefore deployJob()'s upload) ever
-            runs: the scheduler snapshots jobArguments during deploy, and
-            the slice-value upload is scheduled immediately once deploy
-            completes -- both well before localWorker/originManager exist
-            or any async callback would get a turn to run.
+            populates jobArguments/jobInputData/workFunctionURI and before
+            the real JS localExec() call (and therefore deployJob()'s
+            upload) ever runs: the scheduler snapshots all of this during
+            deploy, and the slice-value upload is scheduled immediately
+            once deploy completes -- both well before localWorker/
+            originManager exist or any async callback would get a turn to
+            run.
 
             Returns the list of (path, purpose) grants still needing
             origin access once the local worker exists (see
@@ -255,8 +261,8 @@ def job_maker(super_class):
 
             written_paths = []
 
-            def _write_temp_file(encoded_str):
-                fd, path = tempfile.mkstemp(prefix="bifrost2-localExec-arg-", suffix=".kvin")
+            def _write_temp_file(encoded_str, suffix):
+                fd, path = tempfile.mkstemp(prefix="bifrost2-localExec-arg-", suffix=suffix)
                 with _os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(encoded_str)
                 written_paths.append(path)
@@ -266,20 +272,52 @@ def job_maker(super_class):
             rewrite = pm.eval("""
             (jobRef) => {
               const KVIN = new (require('kvin').KVIN)();
+              const { SuperRangeObject, MultiRangeObject } = globalThis.dcp['range-object'];
+              const { RemoteDataSet } = globalThis.dcp.compute;
               const grants = [];
               const toLocalURL = (v, purpose) => {
                 if (v instanceof URL) return v;
                 const encoded = KVIN.stringify(v);
-                const filePath = globalThis.__pmWriteLocalArgFile(encoded);
+                const filePath = globalThis.__pmWriteLocalArgFile(encoded, '.kvin');
                 grants.push({ path: filePath, purpose });
                 return new URL('file://' + filePath);
               };
               if (jobRef.jobArguments) {
                 jobRef.jobArguments = jobRef.jobArguments.map((v) => toLocalURL(v, 'fetchArguments'));
               }
-              if (Array.isArray(jobRef.jobInputData)) {
-                jobRef.marshaledDataValues = jobRef.jobInputData.map((v) => toLocalURL(v, 'fetchData'));
+
+              // Same detection marshalInputData() uses (job/index.js) to
+              // decide dataRange vs dataValues -- a range object encodes
+              // job design (e.g. combinatorial dimensions), not raw slice
+              // values, but Node treats it as equally local-only, so this
+              // matches that rather than treating it as safe to inline.
+              const inputData = jobRef.jobInputData;
+              const isRange = inputData instanceof SuperRangeObject
+                || (inputData && inputData.hasOwnProperty && inputData.hasOwnProperty('ranges') && inputData.ranges instanceof MultiRangeObject)
+                || (inputData && inputData.hasOwnProperty && inputData.hasOwnProperty('start') && inputData.hasOwnProperty('end'));
+
+              if (isRange) {
+                const filePath = globalThis.__pmWriteLocalArgFile(JSON.stringify(inputData), '.json');
+                grants.push({ path: filePath, purpose: 'fetchData' });
+                jobRef.marshaledDataRange = new RemoteDataSet([new URL('file://' + filePath)]);
+                jobRef.rangeLength = inputData.length;
+              } else if (Array.isArray(inputData)) {
+                jobRef.marshaledDataValues = inputData.map((v) => toLocalURL(v, 'fetchData'));
               }
+
+              // workFunctionURI is a separate field from jobArguments, set
+              // directly by bifrost2's _before_exec() as a data: URI
+              // embedding the full wrapped work function source -- Node's
+              // own rewrite (job/index.js, gated to 'nodejs') never runs
+              // for pythonmonkey, so nothing else does this.
+              if (typeof jobRef.workFunctionURI === 'string' && jobRef.workFunctionURI.startsWith('data:')) {
+                const commaIndex = jobRef.workFunctionURI.indexOf(',');
+                const source = decodeURIComponent(jobRef.workFunctionURI.slice(commaIndex + 1));
+                const filePath = globalThis.__pmWriteLocalArgFile(source, '.js');
+                grants.push({ path: filePath, purpose: 'fetchWorkFunctions' });
+                jobRef.workFunctionURI = new URL('file://' + filePath).href;
+              }
+
               return grants;
             }
             """)
