@@ -150,7 +150,7 @@ def job_maker(super_class):
             def handle_accepted():
                 accepted_future.set_result(self.js_ref.id)
             self.js_ref.on('accepted', handle_accepted)
-            self.js_ref.exec(*args)
+            self.js_ref.exec(*dry.class_manager.unwrap_args(args))
 
             return accepted_future
 
