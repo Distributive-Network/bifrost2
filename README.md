@@ -56,19 +56,22 @@ import dcp
 dcp.init()
 ```
 
-### `dcp.compute_for(input_data: List, work_function: Union[str, Callable]) -> Job`
+### `dcp.compute_for(input_data: List, work_function: Union[str, Callable], args: Optional[List] = None) -> Job`
 
-Instantiates a job handle.
+Instantiates a job handle. `args` is an optional list of static arguments passed once, delivered to every invocation of `work_function` alongside that invocation's own `input_data` element.
 
 ### `dcp.compute.Job`
 
-Job class, instances are returned by the factory functions `dcp.compute_for`, `dcp.compute.do` and from the `@dcp.distribute(...)` decorator.
+Job class, instances are returned by the factory function `dcp.compute_for`.
+
+`dcp.compute.do` (the raw, dynamically-wrapped JS `compute.do`) also returns a `Job`, but takes a JS-source-string work function rather than a Python callable. `dcp.compute_do`, a from-scratch Python-friendly wrapper analogous to `compute_for`, exists but is currently broken (a `NameError` in its own implementation) and isn't usable yet.
 
 #### Job Methods
-**`job.exec(slicePaymentOffer=compute.marketValue: float, paymentAccountKeystore=wallet.get(): dcp.wallet.Keystore, initialSliceProfile=none: dict) -> None`**
+**`job.exec(slicePaymentOffer: Union[float, dict] = compute.marketValue, paymentAccountKeystore: Optional[dcp.wallet.Keystore] = None, initialSliceProfile: Optional[dict] = None) -> str`**
 
-Deploys the job to the DCP Network.
-`slicePaymentOffer` specifies how many DCCs will be expended per slice.
+Deploys the job to the DCP Network and returns the deployed job's ID.
+`slicePaymentOffer` specifies how many DCCs will be expended per slice; it defaults to the current market rate.
+`paymentAccountKeystore` isn't defaulted directly -- if omitted, DCP falls back to `wallet.get()` at deploy time to resolve one.
 Once a job is deployed, workers will begin picking up slices of the job to compute.
 
 **`job.wait() -> ResultHandle`**
@@ -93,7 +96,35 @@ def on_accepted_callback(event):
   print(f"Job {job.id} has been submitted to the DCP Network for computation")
 ```
 
+**`job.setPaymentAccountKeystore(keystore: dcp.wallet.Keystore) -> None`**
+
+Sets the bank account keystore that pays for the job's slices. Call before `job.exec()` -- equivalent to passing `paymentAccountKeystore` to `job.exec()` directly.
+
+The methods below are confirmed to exist -- `tests/test_api/test_job.py` checks for their presence on a `Job` instance -- but, unlike `setPaymentAccountKeystore` above (which a test actually calls), none of them are exercised by a test that calls them. Treat their behavior as unverified until you've confirmed it for your own use case.
+
+**`job.setSlicePaymentOffer(offer: Union[float, dict]) -> None`**
+
+Sets how many DCCs to offer per slice. Equivalent to passing `slicePaymentOffer` to `job.exec()` directly.
+
+**`job.requires(modules: List[str]) -> None`**
+
+Declares DCP package dependencies (in `'package/file.js'` form) that the work function needs available at runtime.
+
+**`job.cancel(reason: Optional[str] = None) -> None`**
+
+Cancels the job.
+
+**`job.resume() -> None`**
+
+Resumes a job that was paused, for example after running out of funds.
+
+**`job.localExec(cores: int = 1, *args) -> ResultHandle`**
+
+Runs the job on the local machine using dcp-client's bundled evaluator, in place of `job.exec()`. This mirrors the JS API, but it's unconfirmed whether it works for Pyodide (Python) work functions the way it does for JS ones -- there's no test or example exercising it from Python.
+
 #### Job Attributes
+
+`status`, `work`, `collateResults`, and `requirements` below are read directly off the underlying JS `Job` object, and their shapes come straight from that object's own source, so they're accurate as descriptions -- but like the methods above, they aren't exercised by any bifrost2 test or example.
 **`job.autoClose`**
 
 Whether or not the job will remain open to accepting more slices after it has been deployed.
@@ -104,7 +135,7 @@ So long as a job is "open", it can receive additional slices to be computed at a
 Example:
 ```python
 my_job.autoClose = False
-my_job.exec # deploy the job
+my_job.exec() # deploy the job
 dcp.job.addSlices([1,2,3], my_job.id) # add three new slices to the job
 ```
 
@@ -125,15 +156,15 @@ Currently only available for use in the "pyodide" Worktime.
 
 Example:
 ```python
-job.fs.add(‘~/Downloads/will_kantor_pringle.png’) # Goes to current working directory of the VFS plus the basename of the file being added (/home/pyodide/will_kantor_pringle.png)
-job.fs.add(‘~/Downloads/severn_lortie.png’, ‘./vfs/at/dir/filename.png’) # goes to (/home/pyodide/vfs/at/dir/filename.png), creates directoies if they do not exist
-job.fs.add(‘~/Downloads/wes_garland.png’, ‘/absolute_file.png’) # goes to (/absolute_file.png)
-job.fs.chdir(‘./vfs/at/dir/’) # throws if any directories in the path do not exist
+job.fs.add('~/Downloads/will_kantor_pringle.png') # Goes to current working directory of the VFS plus the basename of the file being added (/home/pyodide/will_kantor_pringle.png)
+job.fs.add('~/Downloads/severn_lortie.png', './vfs/at/dir/filename.png') # goes to (/home/pyodide/vfs/at/dir/filename.png), creates directoies if they do not exist
+job.fs.add('~/Downloads/wes_garland.png', '/absolute_file.png') # goes to (/absolute_file.png)
+job.fs.chdir('./vfs/at/dir/') # throws if any directories in the path do not exist
 ```
 
 **`job.public`**
 
-A dictionary with three keys: "public", "description", and "link" which each map to strings.
+A dictionary with three keys: "name", "description", and "link" which each map to strings.
 These attributes are displayed by some DCP Workers while operating on slices of the corresponding Job.
 
 Example: `job.public.name = "Will's Awesome DCP Job"`
@@ -153,6 +184,26 @@ A string specifying a semver Worktime version to use.
 
 A boolean specifying if the worktime to use is custom or officially supported by DCP.
 
+**`job.status`**
+
+A dict snapshot of the job's progress, updated as the job runs: `{'runStatus', 'total', 'distributed', 'computed'}`.
+
+**`job.work`**
+
+An event-emitter-like object for custom, worker-defined events raised from inside the work function -- distinct from the standard job events registered via `job.on(...)`.
+
+**`job.collateResults`**
+
+Boolean, default `True`. When set, `job.wait()`'s results are guaranteed to include every slice's result, collected as they arrive.
+
+**`job.requirements`**
+
+A dict describing environment requirements for the job's slices (for example, GPU/engine capability flags).
+
+**`job.serializers`**
+
+A list of serializer descriptors (`{'name', 'interrogator', 'serializer', 'deserializer'}`) Bifrost uses to pack non-primitive Python values into the job's input data and arguments. Defaults to a NumPy-array serializer plus a `cloudpickle` fallback for everything else; override to add custom types.
+
 <!--
 ### `dcp.compute.getJobInfo()`
 
@@ -163,22 +214,22 @@ A boolean specifying if the worktime to use is custom or officially supported by
 
 Adds slices to a job already deployed to DCP.
 
-Example: `dcp.job.addSlices(['Hello, 'World'], '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045')` will add two slices to the job referred to by that job ID.
+Example: `dcp.job.addSlices(['Hello', 'World'], '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045')` will add two slices to the job referred to by that job ID.
 
-### `dcp.job.fetchResults(job_id: str, range_object: dcp.compute.RangeObject) -> List`
+### `dcp.job.fetchResults(job_id: str, range_object: dict) -> List`
 
-Gets the results for a job over specified slice number ranges.
+Gets the results for a job over specified slice number ranges. `range_object` is a plain dict describing the range (for example `{'start': 0, 'end': 9}`); `dcp.compute.RangeObject` isn't exposed to Python, but the underlying JS API accepts an object literal in its place.
 
 ### `dcp.JobFS`
 
 A JobFS (Job Filesystem) class for adding files to the Pyodide in-memory filesystem.
 The filesystem is uploaded and accessible at job run time.
 
-Example: `fs = dcp.JobFs()`
+Example: `fs = dcp.JobFS()`
 
 #### JobFs Methods
 
-**`fs.add(source: Union[str, Path, bytes], destination: Optional[str]) -> None`**
+**`fs.add(source: Union[str, Path, bytes, bytearray], destination: Optional[str]) -> None`**
 
 Adds a file to the filesystem.
 `source` can either be a path on the deployer's local file system or a bytes buffer in memory. 
@@ -190,9 +241,26 @@ The destination's path is resolved to the current working directory of the fs, i
 Changes the current working directory to another directory.
 Throws an exception if the directory passed as `destination` doesn't exist.
 
-### `dcp.wallet.get(label: Optional[str]) -> dcp.wallet.Keystre`
+### `dcp.wallet.get(label: Optional[str]) -> dcp.wallet.BankAccountKeystore`
 
-Gets a dcp keystore.
+Gets a dcp keystore. `label` selects which keystore file to load, defaulting to `'default'` if omitted.
+
+## Async (`.aio`)
+
+Every dcp module (`dcp.wallet`, `dcp.job`, `dcp.compute`, ...) and every wrapped object such as a `Job` exposes a parallel `.aio` namespace, where any method becomes its `async`/coroutine equivalent -- `dcp.wallet.aio.get()`, `dcp.job.aio.fetchResults(...)`, `job.aio.cancel()`, and so on all return an awaitable instead of blocking.
+
+```python
+import asyncio
+
+async def main():
+    keystore = await dcp.wallet.aio.get()
+    job_id = await job.aio.exec()
+    results = await job.aio.wait()
+
+asyncio.run(main())
+```
+
+`job.aio.exec` and `job.aio.wait` are the actual underlying implementations that the blocking `job.exec()` / `job.wait()` wrap. Every other `.aio.*` method is a fully generic passthrough -- it works for any method name on the wrapped object, not a fixed list.
 
 <!--
 ## Concepts
