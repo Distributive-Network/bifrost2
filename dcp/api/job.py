@@ -40,6 +40,7 @@ def job_maker(super_class):
             self._wrapper_set_attribute("_exec_called", False)
             self.aio.exec = self._exec;
             self.aio.wait = self._wait;
+            self.aio.localExec = self._local_exec
 
         def _get_raw_work_function(self):
             """
@@ -154,6 +155,21 @@ def job_maker(super_class):
 
             return accepted_future
 
+        def _local_exec(self, cores=1, *args):
+            self._before_exec()
+            self._wrapper_set_attribute("_exec_called", True)
+            accepted_future = asyncio.Future()
+            def handle_accepted():
+                accepted_future.set_result(self.js_ref.id)
+            self.js_ref.on('accepted', handle_accepted)
+            run = asyncio.ensure_future(self.js_ref.localExec(cores, *dry.class_manager.unwrap_args(args)))
+            def handle_run_done(run):
+                if run.exception() and not accepted_future.done():
+                    accepted_future.set_exception(run.exception())
+            run.add_done_callback(handle_run_done)
+
+            return accepted_future
+
         def _wait(self):
             if not self._exec_called:
                 raise Exception("Wait called before exec()")
@@ -173,6 +189,9 @@ def job_maker(super_class):
         def exec(self, *args):
             results = dry.aio.blockify(self._exec)(*args)
             return results
+
+        def localExec(self, cores=1, *args):
+            return dry.aio.blockify(self._local_exec)(cores, *args)
 
         def wait(self):
             return dry.aio.blockify(self._wait)()
