@@ -17,8 +17,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -29,14 +27,13 @@ readme = "README.md"
 homepage = "https://github.com/Distributive-Network/bifrost2/"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 cloudpickle = "*"
 dill = "^0.3.7"
 pythonmonkey = ">=1.1.0"
 numpy = [
   {version = "^2.1.0",           python = ">=3.13"},      # NumPy 2.1.0  adds support for Python 3.13
-  {version = ">=1.25.0,<2.1.0",  python = ">=3.9,<3.13"}, # NumPy 2.1.0  drops support for Python 3.9
-  {version = ">=1.24.3,<1.25.0", python = ">=3.8,<3.9"},  # NumPy 1.25.0 drops support for Python 3.8
+  {version = ">=1.25.0,<2.1.0",  python = ">=3.10,<3.13"},
 ]
 nest_asyncio = "^1.6.0"
 
@@ -45,7 +42,7 @@ script = "post-install-hook.py"
 generate-setup-file = false
 
 [tool.poetry.dev-dependencies]
-pytest = "^7.3.1"
+pytest = "^9.0.3"
 
 [build-system]
 requires = ["poetry>=1.1.0"]

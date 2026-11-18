@@ -5,6 +5,9 @@
 pip install dcp
 ```
 
+Requires Python 3.10 or later. Python 3.8 and 3.9 are deprecated and untested, but the source
+still supports them: lower the `python` constraint in `pyproject.toml` to install for them.
+
 ## Example
 
 Deploying a job to DCP and getting results:
