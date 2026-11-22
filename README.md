@@ -232,6 +232,12 @@ Verify your installation is correct by running the test suite:
 Run tests with:
 - `$ poetry run pytest`
 
+To build or install bifrost2 with a particular dcp-client, for example an unreleased build, set
+`BIFROST2_DCP_CLIENT` to an npm package spec or path when installing; it replaces the dcp-client in
+`dcp/js/package.json`:
+- `$ BIFROST2_DCP_CLIENT=/path/to/dcp-client poetry install`
+- `$ BIFROST2_DCP_CLIENT=dcp-client@5.9.0 pip install dcp`
+
 ### Publishing
 
 We need to upload the tar since we need to run `npm install` after installation - this is not possible with the wheel distribution option.
